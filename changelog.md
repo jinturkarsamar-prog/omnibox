@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Eliminated blocking network spinners on share link submissions.
+- Fixed PWA manifest `start_url`, `scope`, `share_target.action`, and icon purpose configurations for GitHub Pages (`/omnibox/`) so Chrome on Android triggers native PWA installation instead of falling back to web shortcuts.
 
 ## [1.0.0] — 2026-08-13 16:18 IST
 
