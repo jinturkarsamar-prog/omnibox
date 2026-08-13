@@ -1,0 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Fredoka:wght@400;500;600;700&family=Rajdhani:wght@400;500;600;700&family=Orbitron:wght@400;600;800&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Lato:wght@300;400;700;900&family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=Mali:wght@400;600;700&family=VT323&family=Pacifico&family=Inter:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Poppins:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700;800&family=Righteous&family=Bebas+Neue&family=Bungee&family=Cinzel:wght@400;600;700&family=Abril+Fatface&family=Permanent+Marker&family=Comfortaa:wght@400;600;700&family=Baloo+2:wght@400;500;600;700;800&family=Fira+Code:wght@400;500;600&family=Source+Code+Pro:wght@400;500;600&family=Courier+Prime:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=Nunito:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Oswald:wght@400;600;700&family=Raleway:wght@400;600;700&family=Ubuntu:wght@400;500;700&family=Lobster&family=Anton&family=Cormorant+Garamond:wght@400;600;700&family=Alfa+Slab+One&family=Space+Mono:wght@400;700&family=Inconsolata:wght@400;600;700&family=Anonymous+Pro:wght@400;700&family=Ubuntu+Mono:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--theme-font-sans, "Plus Jakarta Sans", "Outfit", ui-sans-serif, system-ui, sans-serif);
+  --font-display: var(--theme-font-display, "Outfit", sans-serif);
+  --font-mono: var(--theme-font-mono, "JetBrains Mono", ui-monospace, SFMono-Regular, monospace);
+
+  --color-theme-app: var(--theme-bg-app, #0A0A0B);
+  --color-theme-sidebar: var(--theme-bg-sidebar, #121214);
+  --color-theme-card: var(--theme-bg-card, #121214);
+  --color-theme-border: var(--theme-border-color, #252528);
+  --color-theme-text: var(--theme-text-primary, #FFFFFF);
+  --color-theme-muted: var(--theme-text-muted, #A1A1AA);
+  --color-theme-accent: var(--theme-accent-color, #EC4899);
+  --color-theme-hover: var(--theme-accent-hover, #D946EF);
+
+  --radius-sm: 14px;
+  --radius-md: 14px;
+  --radius-lg: 14px;
+  --radius-xl: 14px;
+  --radius-2xl: 14px;
+  --radius-3xl: 14px;
+  --radius: 14px;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--theme-bg-app, #FCFBF9);
+  color: var(--theme-text-primary, #2A2521);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* Custom scrollbars matching theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--theme-border-color, #E7E3DB);
+  border-radius: 99px;
+  transition: background 0.15s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-text-muted, #7C756D);
+}
+
+::selection {
+  background-color: rgba(var(--theme-accent-color), 0.15);
+  color: var(--theme-text-primary);
+}
+
