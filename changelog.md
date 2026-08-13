@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Client-side zero-latency heuristic URL parser (`src/utils/quickParse.ts`) for instant offline platform detection and preview generation (<5ms).
 - Non-blocking background AI metadata enrichment pipeline (`enrichItemInBackground`) that updates items silently without blocking user workflows.
 - Glassmorphic animated toast notification system (`src/components/ToastNotification.tsx`) with instant action triggers (`View`, `Undo`).
+- Automated GitHub Actions deployment workflow (`.github/workflows/deploy.yml`) configured for Node.js 24 and GitHub Pages PWA hosting.
 
 ### Changed
 - Web Share Target on app mount now instantly saves items to IndexedDB in <5ms without blocking modal prompts.
