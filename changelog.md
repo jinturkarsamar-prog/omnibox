@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Eliminated blocking network spinners on share link submissions.
-- Fixed PWA manifest `start_url`, `scope`, `share_target.action`, and icon purpose configurations for GitHub Pages (`/omnibox/`) so Chrome on Android triggers native PWA installation instead of falling back to web shortcuts.
+- Fixed PWA manifest `start_url`, `scope`, `share_target.action`, explicit `id`, and icon purpose configurations for GitHub Pages (`/omnibox/`).
+- Replaced corrupt placeholder icon binaries (`icon-192.png` and `icon-512.png`) with valid, high-resolution 192x192 and 512x512 RGBA PNG images so Chrome for Android passes icon decoding and installs the native PWA.
 
 ## [1.0.0] — 2026-08-13 16:18 IST
 

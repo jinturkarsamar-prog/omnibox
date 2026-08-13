@@ -19,6 +19,7 @@ export default defineConfig(() => {
           enabled: true
         },
         manifest: {
+          id: basePath,
           name: "OmniBox Content Aggregator",
           short_name: "OmniBox",
           description: "Universal local-first content aggregator and media visualizer.",
