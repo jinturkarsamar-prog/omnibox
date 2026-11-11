@@ -125,12 +125,48 @@ function heuristicScrape(url) {
     }
   } else if (lowercaseUrl.includes("instagram.com") || lowercaseUrl.includes("instagr.am")) {
     platform = "Instagram";
-    const isReel = lowercaseUrl.includes("/reel/") || lowercaseUrl.includes("/reels/");
-    format = isReel ? "Reel" : "Post";
     brandColor = "#e1306c";
-    tags = [isReel ? "Reels" : "Social", "Instagram", "Inbox"];
-    title = isReel ? "Instagram Reel" : "Instagram Post";
     previewUrl = "";
+    const reserved = /* @__PURE__ */ new Set([
+      "p",
+      "reel",
+      "reels",
+      "tv",
+      "stories",
+      "explore",
+      "accounts",
+      "direct",
+      "about",
+      "legal",
+      "developer",
+      "directory",
+      "share",
+      "s",
+      "_u"
+    ]);
+    let segs = [];
+    try {
+      segs = new URL(url).pathname.split("/").filter(Boolean);
+    } catch {
+      segs = [];
+    }
+    const lowerSegs = segs.map((s) => s.toLowerCase());
+    const isReel = lowerSegs.includes("reel") || lowerSegs.includes("tv") || lowerSegs[0] === "reels" && lowerSegs.length >= 2 || lowerSegs[0] === "share" && lowerSegs[1] === "reel";
+    const isPost = lowerSegs.includes("p") || lowerSegs[0] === "stories" || lowerSegs[0] === "share" || lowerSegs[0] === "s";
+    const profileHandle = lowerSegs[0] === "_u" && segs[1] ? segs[1].replace(/^@/, "") : segs.length === 1 && !reserved.has(lowerSegs[0]) ? segs[0].replace(/^@/, "") : segs.length === 2 && !reserved.has(lowerSegs[0]) && ["reels", "tagged", "channel", "guides", "live"].includes(lowerSegs[1]) ? segs[0].replace(/^@/, "") : null;
+    if (isReel) {
+      format = "Reel";
+      tags = ["Reels", "Instagram", "Inbox"];
+      title = "Instagram Reel";
+    } else if (!isPost && profileHandle) {
+      format = "Profile";
+      tags = ["Profile", "Instagram", "Inbox"];
+      title = `Instagram (@${profileHandle})`;
+    } else {
+      format = "Post";
+      tags = ["Social", "Instagram", "Inbox"];
+      title = "Instagram Post";
+    }
   } else if (lowercaseUrl.includes("tiktok.com")) {
     platform = "TikTok";
     format = "Reel";
