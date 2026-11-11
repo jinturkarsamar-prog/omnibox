@@ -33,6 +33,82 @@ export function extractTitleAndNote(shareTitle?: string, shareText?: string, tar
   return { title, note };
 }
 
+const RESERVED_INSTAGRAM_SEGMENTS = new Set([
+  'p',
+  'reel',
+  'reels',
+  'tv',
+  'stories',
+  'explore',
+  'accounts',
+  'direct',
+  'about',
+  'legal',
+  'developer',
+  'directory',
+  'share',
+  's',
+  '_u',
+  'ar',
+  'audio',
+  'tags',
+  'locations',
+]);
+
+const INSTAGRAM_PROFILE_TABS = new Set(['reels', 'tagged', 'channel', 'guides', 'live']);
+
+/**
+ * Classifies an Instagram URL into Reel, Post, or Profile and extracts a profile handle when present.
+ */
+export function classifyInstagramUrl(targetUrl: string): { format: 'Reel' | 'Post' | 'Profile'; username: string | null } {
+  try {
+    const parsed = new URL(targetUrl);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const lowerSegments = segments.map((s) => s.toLowerCase());
+
+    if (
+      lowerSegments.includes('reel') ||
+      lowerSegments.includes('tv') ||
+      (lowerSegments[0] === 'reels' && lowerSegments.length >= 2) ||
+      (lowerSegments[0] === 'share' && lowerSegments[1] === 'reel')
+    ) {
+      return { format: 'Reel', username: null };
+    }
+
+    if (
+      lowerSegments.includes('p') ||
+      lowerSegments[0] === 'stories' ||
+      lowerSegments[0] === 'share' ||
+      lowerSegments[0] === 's'
+    ) {
+      return { format: 'Post', username: null };
+    }
+
+    if (lowerSegments[0] === '_u' && segments[1]) {
+      return { format: 'Profile', username: segments[1].replace(/^@/, '') };
+    }
+
+    if (segments.length === 1 && !RESERVED_INSTAGRAM_SEGMENTS.has(lowerSegments[0])) {
+      return { format: 'Profile', username: segments[0].replace(/^@/, '') };
+    }
+
+    if (
+      segments.length === 2 &&
+      !RESERVED_INSTAGRAM_SEGMENTS.has(lowerSegments[0]) &&
+      INSTAGRAM_PROFILE_TABS.has(lowerSegments[1])
+    ) {
+      return { format: 'Profile', username: segments[0].replace(/^@/, '') };
+    }
+  } catch {
+    const lower = targetUrl.toLowerCase();
+    if (lower.includes('/reel/') || lower.includes('/reels/')) {
+      return { format: 'Reel', username: null };
+    }
+  }
+
+  return { format: 'Post', username: null };
+}
+
 export interface QuickParseResult {
   header: string;
   note: string;
@@ -56,16 +132,22 @@ export function quickParseUrl(targetUrl: string, shareTitle?: string, shareText?
   let brandColor = '#3b82f6';
   let tags: string[] = ['Inbox'];
 
-  // 1. Instagram Reels & Posts
+  // 1. Instagram Reels, Posts & Profiles
   if (lowerUrl.includes('instagram.com') || lowerUrl.includes('instagr.am')) {
     platform = 'Instagram';
     brandColor = '#E1306C';
+    const ig = classifyInstagramUrl(targetUrl);
 
-    if (lowerUrl.includes('/reel/') || lowerUrl.includes('/reels/')) {
+    if (ig.format === 'Reel') {
       format = 'Reel';
       header = extractedTitle || 'Instagram Reel';
       tags = ['Instagram', 'Reels', 'Inbox'];
       previewUrl = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800&q=80';
+    } else if (ig.format === 'Profile') {
+      format = 'Profile';
+      header = extractedTitle || (ig.username ? `Instagram (@${ig.username})` : 'Instagram Profile');
+      tags = ['Instagram', 'Profile', 'Inbox'];
+      previewUrl = 'https://images.unsplash.com/photo-1611262588024-d12430b98920?w=800&q=80';
     } else {
       format = 'Post';
       header = extractedTitle || 'Instagram Post';
