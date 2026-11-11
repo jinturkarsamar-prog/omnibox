@@ -315,20 +315,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <>
-      {isOpen && (
-        <div
-          onClick={onClose}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
-        />
-      )}
-      <aside
-        className={`flex flex-col bg-theme-sidebar transition-all duration-300 lg:static lg:h-dvh ${
-          isOpen
-            ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] h-dvh pt-safe pb-safe shadow-2xl lg:shadow-none lg:w-64 lg:opacity-100 border-r border-theme-border'
-            : 'hidden lg:flex lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0'
-        }`}
-      >
+    <aside
+      className={`hidden lg:flex flex-col bg-theme-sidebar h-dvh transition-all duration-300 shrink-0 ${
+        isOpen
+          ? 'lg:w-64 lg:opacity-100 border-r border-theme-border'
+          : 'lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0'
+      }`}
+    >
       {/* Sidebar Header (Serif Display Header matching design spec) */}
       <div className="p-6 pb-4 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-sidebar transition-all duration-200">
         <div className="flex items-center space-x-3">
@@ -338,12 +331,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <p className="text-[10px] uppercase tracking-widest text-theme-muted mt-1 font-sans">Your Personal Library</p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card lg:hidden"
-        >
-          <X size={20} />
-        </button>
       </div>
 
       {/* Main Sections */}
@@ -468,7 +455,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   placeholder="New tag..."
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
-                  className="flex-1 bg-theme-card border border-theme-border rounded-xl px-2.5 py-1.5 text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent"
+                  className="flex-1 min-w-0 bg-theme-card border border-theme-border rounded-xl px-2.5 py-1.5 text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent"
                   required
                 />
                 <div className="relative">
@@ -732,6 +719,5 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </aside>
-  </>
-);
+  );
 };

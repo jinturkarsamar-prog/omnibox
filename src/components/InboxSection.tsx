@@ -34,7 +34,7 @@ interface InboxSectionProps {
   gallerySize?: 'comfortable' | 'standard' | 'compact';
   listDensity?: 'comfortable' | 'compact';
   showNotesInFeed?: boolean;
-  
+  showYouTubeViewer?: boolean;
 }
 
 export const InboxSection: React.FC<InboxSectionProps> = ({
@@ -53,6 +53,7 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
   gallerySize = 'standard',
   listDensity = 'comfortable',
   showNotesInFeed = true,
+  showYouTubeViewer = true,
 }) => {
   // Selected items for mass actions
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -245,7 +246,8 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
           </div>
         ) : (
           <Feed
-            onTagClick={onTagClick} 
+            onTagClick={onTagClick}
+            showYouTubeViewer={showYouTubeViewer}
             items={inboxItems}
             folders={folders}
             tags={tags}

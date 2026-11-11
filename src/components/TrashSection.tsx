@@ -14,7 +14,7 @@ interface TrashSectionProps {
   gallerySize?: 'comfortable' | 'standard' | 'compact';
   listDensity?: 'comfortable' | 'compact';
   showNotesInFeed?: boolean;
-  
+  showYouTubeViewer?: boolean;
 }
 
 export const TrashSection: React.FC<TrashSectionProps> = ({
@@ -28,6 +28,7 @@ export const TrashSection: React.FC<TrashSectionProps> = ({
   gallerySize = 'standard',
   listDensity = 'comfortable',
   showNotesInFeed = true,
+  showYouTubeViewer = true,
 }) => {
   // Calculate remaining simulated days (mocked based on when they were deleted, default is 30 days remaining)
   const getSimulatedDaysRemaining = (deletedAtStr: string | null): number => {
@@ -113,7 +114,8 @@ export const TrashSection: React.FC<TrashSectionProps> = ({
         </div>
       ) : (
         <Feed
-            onTagClick={onTagClick} 
+            onTagClick={onTagClick}
+            showYouTubeViewer={showYouTubeViewer}
             items={trashItems}
             folders={[]}
             tags={[]}

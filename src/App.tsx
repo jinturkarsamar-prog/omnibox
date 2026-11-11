@@ -16,7 +16,6 @@ import {
   Globe,
   Tag as TagIcon,
   HelpCircle,
-  Menu,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag, AutoRule, PlatformType, FormatType, ThemeConfig } from './types';
 import { THEME_PRESETS } from './theme';
@@ -171,6 +170,9 @@ export default function App() {
   const [showPlatformBadges, setShowPlatformBadges] = useState<boolean>(() => {
     return localStorage.getItem('omnibox_show_badges') !== 'false';
   });
+  const [showYouTubeViewer, setShowYouTubeViewer] = useState<boolean>(() => {
+    return localStorage.getItem('omnibox_show_youtube_viewer') !== 'false';
+  });
 
   useEffect(() => {
     localStorage.setItem('omnibox_show_tags', String(showTagsInFeed));
@@ -178,27 +180,23 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('omnibox_show_badges', String(showPlatformBadges));
   }, [showPlatformBadges]);
+  useEffect(() => {
+    localStorage.setItem('omnibox_show_youtube_viewer', String(showYouTubeViewer));
+  }, [showYouTubeViewer]);
   
-  // Sidebar Toggles (for Mobile Android & Desktop)
+  // Sidebar Toggle (Desktop only >= 1024px; mobile uses BottomNavigation)
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
-      return window.innerWidth >= 1280; // xl breakpoint is 1280px
-    }
-    return false;
-  });
-  const [isMobileDrawerMode, setIsMobileDrawerMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 1024;
+      return window.innerWidth >= 1024;
     }
     return false;
   });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    let prevIsDesktop = window.innerWidth >= 1280;
+    let prevIsDesktop = window.innerWidth >= 1024;
     const handleResize = () => {
-      const nowDesktop = window.innerWidth >= 1280;
-      setIsMobileDrawerMode(window.innerWidth < 1024);
+      const nowDesktop = window.innerWidth >= 1024;
       if (nowDesktop !== prevIsDesktop) {
         prevIsDesktop = nowDesktop;
         setIsSidebarOpen(nowDesktop);
@@ -536,7 +534,6 @@ export default function App() {
     if (mainScrollRef.current) {
       mainScrollRef.current.scrollTop = 0;
     }
-    setIsSidebarOpen(false); // Close drawer on mobile navigate
   };
 
   const handleNavigateBackSection = () => {
@@ -554,7 +551,6 @@ export default function App() {
   };
 
   // Android / browser universal back handlers for top-level overlays
-  useBackHandler(isSidebarOpen && isMobileDrawerMode, () => setIsSidebarOpen(false));
   useBackHandler(isCommandPaletteOpen, () => setIsCommandPaletteOpen(false));
   useBackHandler(Boolean(contextMenu), () => setContextMenu(null));
   useBackHandler(Boolean(selectedItem) && isWideScreen && !showFullDetailSheet, () =>
@@ -1284,16 +1280,21 @@ export default function App() {
         {/* Navbar */}
         <header className="min-h-14 sm:min-h-16 pt-safe shrink-0 border-b border-theme-border flex items-center justify-between px-3 sm:px-6 bg-theme-sidebar/85 backdrop-blur-md sticky top-0 z-30 transition-colors duration-200 text-theme-text">
           <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Hamburger + Logo (Opens mobile drawer on phone, collapses sidebar on desktop) */}
+            {/* Brand Logo (Home on mobile, collapses sidebar on desktop) */}
             <button
               type="button"
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+                  setIsSidebarOpen((prev) => !prev);
+                } else {
+                  handleNavigate('all');
+                }
+              }}
               className="flex items-center space-x-2 cursor-pointer hover:opacity-85 active:scale-95 transition-all text-left focus:outline-none py-1 pr-2 rounded-xl"
-              title={isSidebarOpen ? "Collapse sidebar" : "Open menu"}
+              title="OmniBox"
             >
-              <Menu size={18} className="lg:hidden text-theme-muted shrink-0" />
               <Logo size={32} />
-              <span className="font-display italic text-theme-text text-lg tracking-tight hidden sm:block">
+              <span className="font-display italic text-theme-text text-lg tracking-tight">
                 OmniBox
               </span>
             </button>
@@ -1345,6 +1346,7 @@ export default function App() {
             // LANDING INBOX PROCESSING BOARD
             // =========================================================
             <InboxSection layout={layout} setLayout={setLayout}
+              showYouTubeViewer={showYouTubeViewer}
               onTagClick={handleTagClick}
               inboxItems={items.filter((i) => i.deletedAt === null && i.folderId === null)}
               folders={folders}
@@ -1365,6 +1367,7 @@ export default function App() {
             // =========================================================
             <TrashSection
               onTagClick={handleTagClick} layout={layout} setLayout={setLayout}
+              showYouTubeViewer={showYouTubeViewer}
               trashItems={items.filter((i) => i.deletedAt !== null)}
               onRestoreItem={handleRestoreItem}
               onPermanentDeleteItem={handlePermanentDelete}
@@ -1388,6 +1391,8 @@ export default function App() {
               setShowTagsInFeed={setShowTagsInFeed}
               showPlatformBadges={showPlatformBadges}
               setShowPlatformBadges={setShowPlatformBadges}
+              showYouTubeViewer={showYouTubeViewer}
+              setShowYouTubeViewer={setShowYouTubeViewer}
               items={items}
               folders={folders}
               tags={tags}
@@ -1524,6 +1529,7 @@ export default function App() {
                       showNotesInFeed={showNotesInFeed}
                   showTagsInFeed={showTagsInFeed}
                   showPlatformBadges={showPlatformBadges}
+                  showYouTubeViewer={showYouTubeViewer}
                   selectedItemIds={selectedItemIds}
                   onSelectItem={(item) => setSelectedItem(item)}
                   onDeleteItem={handleDeleteItem}
@@ -1548,6 +1554,7 @@ export default function App() {
           allItems={items}
           folders={folders}
           tags={tags}
+          showYouTubeViewer={showYouTubeViewer}
           onClose={() => setSelectedItem(null)}
           onUpdateItem={handleUpdateItem}
           onTagClick={handleTagClick}
@@ -1563,6 +1570,7 @@ export default function App() {
           allItems={items}
           folders={folders}
           tags={tags}
+          showYouTubeViewer={showYouTubeViewer}
           onClose={() => setSelectedItem(null)}
           onUpdateItem={handleUpdateItem}
           onTagClick={handleTagClick}
@@ -1596,9 +1604,16 @@ export default function App() {
           setPrefillData(null);
           setShowAddDialog(true);
         }}
-        onOpenSidebar={() => setIsSidebarOpen(true)}
         folders={folders}
+        tags={tags}
         itemsCount={itemsCount}
+        getFolderItemsCount={getFolderItemsCount}
+        onAddFolder={handleAddFolder}
+        onEditFolder={handleEditFolder}
+        onDeleteFolder={handleDeleteFolder}
+        onAddTag={handleAddTag}
+        onDeleteTag={handleDeleteTag}
+        onTagClick={handleTagClick}
       />
 
       {/* Folder Move/Archive swipe-right bottom sheet */}

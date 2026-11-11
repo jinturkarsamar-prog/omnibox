@@ -45,6 +45,8 @@ interface SettingsSectionProps {
   setShowTagsInFeed: (s: boolean) => void;
   showPlatformBadges: boolean;
   setShowPlatformBadges: (s: boolean) => void;
+  showYouTubeViewer: boolean;
+  setShowYouTubeViewer: (s: boolean) => void;
   items: SavedItem[];
   folders: Folder[];
   tags: Tag[];
@@ -74,6 +76,8 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   setShowTagsInFeed,
   showPlatformBadges,
   setShowPlatformBadges,
+  showYouTubeViewer,
+  setShowYouTubeViewer,
   items,
   folders,
   tags,
@@ -497,6 +501,13 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                       <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out ${showPlatformBadges ? 'translate-x-4' : 'translate-x-0'}`} />
                     </div>
                     <span className="ml-3 text-xs font-semibold text-theme-text">Show Platform Badges</span>
+                  </div>
+
+                  <div className="flex items-center cursor-pointer" onClick={() => setShowYouTubeViewer(!showYouTubeViewer)}>
+                    <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ease-in-out flex-shrink-0 ${showYouTubeViewer ? 'bg-theme-accent' : 'bg-black/30 border border-theme-border'}`}>
+                      <div className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out ${showYouTubeViewer ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </div>
+                    <span className="ml-3 text-xs font-semibold text-theme-text">YouTube Player &amp; Thumbnails</span>
                   </div>
                 </div>
               </div>

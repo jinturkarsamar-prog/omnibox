@@ -16,6 +16,7 @@ import {
 import { SavedItem, Tag, Folder } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
 import { SwipeableItem } from './SwipeableItem';
+import { getYouTubeVideoId } from '../utils/youtube';
 
 interface FeedProps {
   items: SavedItem[];
@@ -27,6 +28,7 @@ interface FeedProps {
   showNotesInFeed?: boolean;
   showTagsInFeed?: boolean;
   showPlatformBadges?: boolean;
+  showYouTubeViewer?: boolean;
   selectedItemIds: string[];
   onSelectItem: (item: SavedItem) => void;
   onDeleteItem: (id: string) => void;
@@ -104,6 +106,7 @@ export const Feed: React.FC<FeedProps> = ({
   showNotesInFeed = true,
   showTagsInFeed = true,
   showPlatformBadges = true,
+  showYouTubeViewer = true,
   selectedItemIds,
   onSelectItem,
   onDeleteItem,
@@ -224,6 +227,7 @@ export const Feed: React.FC<FeedProps> = ({
           const itemTags = tags.filter((t) => item.tags.includes(t.name) || item.tags.includes(t.id));
           const itemFolder = folders.find((f) => f.id === item.folderId);
           const isListSelected = selectedItemIds.includes(item.id);
+          const showThumbnail = showYouTubeViewer && Boolean(getYouTubeVideoId(item.url));
 
           // Card Wrapper Click/Multi-Select Handler
           const handleCardClick = (e: React.MouseEvent) => {
@@ -278,20 +282,30 @@ export const Feed: React.FC<FeedProps> = ({
                   <div className="w-1.5 h-1.5 rounded-xl bg-current" />
                 </div>
 
-                {/* Visual Thumbnail */}
-                <div className={getListThumbnailClass(item)}>
-                  <img
-                    src={item.customPreviewUrl || item.previewUrl}
-                    alt={item.header}
-                    className="w-full h-full object-cover group-hover:scale-105 transition"
-                    referrerPolicy="no-referrer"
-                  />
-                  {showPlatformBadges && (
-                    <div className="absolute top-1 left-1 z-10" onClick={(e) => { e.stopPropagation(); onTagClick?.(item.platform, 'platform'); }}>
-                      <PlatformIcon platform={item.platform} size={11} className="bg-black/60 rounded-xl p-0.5 cursor-pointer hover:scale-110 transition-transform" />
-                    </div>
-                  )}
-                </div>
+                {/* Visual Thumbnail (YouTube only when enabled) or Compact Platform Icon */}
+                {showThumbnail ? (
+                  <div className={getListThumbnailClass(item)}>
+                    <img
+                      src={item.customPreviewUrl || item.previewUrl}
+                      alt={item.header}
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                      referrerPolicy="no-referrer"
+                    />
+                    {showPlatformBadges && (
+                      <div className="absolute top-1 left-1 z-10" onClick={(e) => { e.stopPropagation(); onTagClick?.(item.platform, 'platform'); }}>
+                        <PlatformIcon platform={item.platform} size={11} className="bg-black/60 rounded-xl p-0.5 cursor-pointer hover:scale-110 transition-transform" />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    onClick={(e) => { e.stopPropagation(); onTagClick?.(item.platform, 'platform'); }}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-xs cursor-pointer hover:scale-105 transition-transform ${getPlatformBadgeColor(item.platform)}`}
+                    title={item.platform}
+                  >
+                    <PlatformIcon platform={item.platform} size={18} />
+                  </div>
+                )}
 
                 {/* List Details */}
                 <div className="flex-1 min-w-0">
@@ -404,6 +418,7 @@ export const Feed: React.FC<FeedProps> = ({
             const itemFolder = folders.find((f) => f.id === item.folderId);
             const isDragging = draggedItemId === item.id;
             const isSelected = selectedItemIds.includes(item.id);
+            const showThumbnail = showYouTubeViewer && Boolean(getYouTubeVideoId(item.url));
 
             const handleCardClick = (e: React.MouseEvent) => {
               if (e.metaKey || e.ctrlKey || e.shiftKey) {
@@ -454,85 +469,153 @@ export const Feed: React.FC<FeedProps> = ({
                     />
                   )}
 
-                  {/* Multi-Select Checkbox Indicator */}
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleSelectItem(item.id, false);
-                    }}
-                    className={`absolute top-3 left-3 w-5 h-5 rounded-xl border flex items-center justify-center transition-all z-20 cursor-pointer ${
-                      isSelected
-                        ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-md'
-                        : 'bg-black/40 border-white/60 text-transparent opacity-0 group-hover:opacity-100'
-                    } ${selectedItemIds.length > 0 ? 'opacity-100' : ''}`}
-                    style={{
-                      backgroundColor: isSelected ? 'var(--color-theme-accent)' : undefined,
-                      borderColor: isSelected ? 'var(--color-theme-accent)' : undefined,
-                    }}
-                    title="Select item"
-                  >
-                    <div className="w-1.5 h-1.5 rounded-xl bg-current" />
-                  </div>
+                  {showThumbnail ? (
+                    <>
+                      {/* Multi-Select Checkbox Indicator */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleSelectItem(item.id, false);
+                        }}
+                        className={`absolute top-3 left-3 w-5 h-5 rounded-xl border flex items-center justify-center transition-all z-20 cursor-pointer ${
+                          isSelected
+                            ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-md'
+                            : 'bg-black/40 border-white/60 text-transparent opacity-0 group-hover:opacity-100'
+                        } ${selectedItemIds.length > 0 ? 'opacity-100' : ''}`}
+                        style={{
+                          backgroundColor: isSelected ? 'var(--color-theme-accent)' : undefined,
+                          borderColor: isSelected ? 'var(--color-theme-accent)' : undefined,
+                        }}
+                        title="Select item"
+                      >
+                        <div className="w-1.5 h-1.5 rounded-xl bg-current" />
+                      </div>
 
-                  {/* Drag Handle Indicator */}
-                  {!isTrashView && !!onReorderItems && (
-                    <div
-                      onDragStart={(e) => e.stopPropagation()}
-                      draggable={false}
-                      className="absolute top-3 right-3 p-1.5 rounded-xl bg-theme-card/95 backdrop-blur-md text-theme-muted hover:text-theme-text border border-theme-border opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-20"
-                      title="Drag to reorder"
-                    >
-                      <GripVertical size={12} />
+                      {/* Drag Handle Indicator */}
+                      {!isTrashView && !!onReorderItems && (
+                        <div
+                          onDragStart={(e) => e.stopPropagation()}
+                          draggable={false}
+                          className="absolute top-3 right-3 p-1.5 rounded-xl bg-theme-card/95 backdrop-blur-md text-theme-muted hover:text-theme-text border border-theme-border opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-20"
+                          title="Drag to reorder"
+                        >
+                          <GripVertical size={12} />
+                        </div>
+                      )}
+
+                      {/* Format Indicator Badge */}
+                      <div className="absolute top-3 right-3 z-20 pointer-events-none group-hover:opacity-0 transition-opacity duration-200">
+                        <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-xl bg-black/60 backdrop-blur-xs text-white border border-white/10">
+                          {item.format}
+                        </span>
+                      </div>
+
+                      {/* Visual Content Section (YouTube thumbnail) */}
+                      <div className={getGalleryThumbnailClass(item)}>
+                        <img
+                          src={item.customPreviewUrl || item.previewUrl}
+                          alt={item.header}
+                          className="w-full h-full object-cover transition duration-500 ease-out group-hover:scale-[1.025]"
+                          referrerPolicy="no-referrer"
+                        />
+
+                        {/* Platform Brand Badge Pill Overlay */}
+                        {showPlatformBadges && item.platform && (
+                          <div 
+                            onClick={(e) => { e.stopPropagation(); onTagClick?.(item.platform, 'platform'); }}
+                            className={`absolute bottom-3 left-3 flex items-center space-x-1.5 px-2 py-1 rounded-xl text-[10px] font-bold text-white shadow-md z-20 cursor-pointer backdrop-blur-xs hover:scale-105 transition ${getPlatformBadgeColor(item.platform)}`}
+                          >
+                            <PlatformIcon platform={item.platform} size={10} />
+                            <span>{item.platform}</span>
+                          </div>
+                        )}
+
+                        {/* Interactive External Link Button Overlay */}
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md z-20 opacity-90 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-y-1 lg:group-hover:translate-y-0 duration-300 border border-white/5 cursor-pointer flex items-center justify-center"
+                          title={`Open original URL on ${item.platform}`}
+                        >
+                          <ExternalLink size={12} className="stroke-[2.5px]" />
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    /* Compact Header Bar for cards without visual viewer/thumbnail */
+                    <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleSelectItem(item.id, false);
+                          }}
+                          className={`w-4 h-4 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                            isSelected
+                              ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-sm'
+                              : 'bg-theme-sidebar border-theme-border text-transparent opacity-60 lg:opacity-0 lg:group-hover:opacity-100'
+                          } ${selectedItemIds.length > 0 ? 'opacity-100' : ''}`}
+                          style={{
+                            backgroundColor: isSelected ? 'var(--color-theme-accent)' : undefined,
+                            borderColor: isSelected ? 'var(--color-theme-accent)' : undefined,
+                          }}
+                          title="Select item"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                        </div>
+
+                        {showPlatformBadges && item.platform && (
+                          <div
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTagClick?.(item.platform, 'platform');
+                            }}
+                            className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-xl text-[10px] font-bold text-white shadow-xs cursor-pointer hover:scale-105 transition shrink-0 ${getPlatformBadgeColor(item.platform)}`}
+                          >
+                            <PlatformIcon platform={item.platform} size={10} />
+                            <span>{item.platform}</span>
+                          </div>
+                        )}
+
+                        <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-xl bg-theme-sidebar text-theme-muted border border-theme-border truncate">
+                          {item.format}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {!isTrashView && !!onReorderItems && (
+                          <div
+                            onDragStart={(e) => e.stopPropagation()}
+                            draggable={false}
+                            className="p-1.5 rounded-xl text-theme-muted hover:text-theme-text opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            title="Drag to reorder"
+                          >
+                            <GripVertical size={12} />
+                          </div>
+                        )}
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded-xl bg-theme-sidebar border border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-accent transition-all cursor-pointer flex items-center justify-center"
+                          title={`Open original URL on ${item.platform}`}
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                      </div>
                     </div>
                   )}
 
-                  {/* Format Indicator Badge */}
-                  <div className="absolute top-3 right-3 z-20 pointer-events-none group-hover:opacity-0 transition-opacity duration-200">
-                    <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-xl bg-black/60 backdrop-blur-xs text-white border border-white/10">
-                      {item.format}
-                    </span>
-                  </div>
-
-                  {/* Visual Content Section */}
-                  <div className={getGalleryThumbnailClass(item)}>
-                    <img
-                      src={item.customPreviewUrl || item.previewUrl}
-                      alt={item.header}
-                      className="w-full h-full object-cover transition duration-500 ease-out group-hover:scale-[1.025]"
-                      referrerPolicy="no-referrer"
-                    />
-
-                    {/* Platform Brand Badge Pill Overlay */}
-                    {showPlatformBadges && item.platform && (
-                      <div 
-                        onClick={(e) => { e.stopPropagation(); onTagClick?.(item.platform, 'platform'); }}
-                        className={`absolute bottom-3 left-3 flex items-center space-x-1.5 px-2 py-1 rounded-xl text-[10px] font-bold text-white shadow-md z-20 cursor-pointer backdrop-blur-xs hover:scale-105 transition ${getPlatformBadgeColor(item.platform)}`}
-                      >
-                        <PlatformIcon platform={item.platform} size={10} />
-                        <span>{item.platform}</span>
-                      </div>
-                    )}
-
-                    {/* Interactive External Link Button Overlay */}
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md z-20 opacity-90 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-y-1 lg:group-hover:translate-y-0 duration-300 border border-white/5 cursor-pointer flex items-center justify-center"
-                      title={`Open original URL on ${item.platform}`}
-                    >
-                      <ExternalLink size={12} className="stroke-[2.5px]" />
-                    </a>
-                  </div>
-
                   {/* Card Meta Content */}
-                  <div className="flex flex-col flex-1 p-4.5 space-y-2">
-                    <h3 className="text-sm font-semibold text-theme-text tracking-wide line-clamp-1 leading-snug group-hover:text-theme-accent transition-colors font-sans">
+                  <div className={`flex flex-col flex-1 space-y-2 ${showThumbnail ? 'p-4.5' : 'px-3.5 pb-3.5 pt-2.5'}`}>
+                    <h3 className={`text-sm font-semibold text-theme-text tracking-wide leading-snug group-hover:text-theme-accent transition-colors font-sans ${showThumbnail ? 'line-clamp-1' : 'line-clamp-2'}`}>
                       {item.header}
                     </h3>
                     {showNotesInFeed && item.note && (
-                      <p className="text-xs text-theme-muted line-clamp-2 leading-relaxed">
+                      <p className={`text-xs text-theme-muted leading-relaxed ${showThumbnail ? 'line-clamp-2' : 'line-clamp-3'}`}>
                         {item.note}
                       </p>
                     )}

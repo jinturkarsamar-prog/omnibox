@@ -9,7 +9,6 @@ import {
   Plus,
   ArrowLeft,
   ChevronRight,
-  ZoomIn,
   MessageSquare,
   Globe,
   Trash,
@@ -19,24 +18,23 @@ import {
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
-import { AudioDeckPlayer } from './AudioDeckPlayer';
-import { MoodboardStudio } from './MoodboardStudio';
-import { ImmersiveReader } from './ImmersiveReader';
-import { SocialSimulator } from './SocialSimulator';
 import { useBackHandler, BackStackLayer } from '../utils/backNavigation';
 import {
   downloadBlob,
   getItemMarkdownFilename,
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
+import { getYouTubeVideoId } from '../utils/youtube';
 
 interface DetailSheetProps {
   item: SavedItem;
   allItems: SavedItem[];
   folders: Folder[];
   tags: Tag[];
+  showYouTubeViewer?: boolean;
   onClose: () => void;
   onUpdateItem: (updated: SavedItem) => void;
+  onTagClick?: (tagName: string) => void;
   onDeleteItem: (id: string) => void;
 }
 
@@ -45,6 +43,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
   allItems,
   folders,
   tags,
+  showYouTubeViewer = true,
   onClose,
   onUpdateItem,
   onTagClick,
@@ -64,8 +63,6 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
   // Search/Adding Tag in edit state
   const [tagInput, setTagInput] = useState('');
 
-  // Zoom Image Modal State
-  const [showZoomModal, setShowZoomModal] = useState(false);
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
 
   // Sync state whenever active item in the stack changes
@@ -89,7 +86,6 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
   // Android / browser hardware back button support (layered LIFO)
   useBackHandler(true, onClose);
   useBackHandler(isEditing, () => setIsEditing(false));
-  useBackHandler(showZoomModal, () => setShowZoomModal(false));
 
   if (!activeItem) return null;
 
@@ -114,13 +110,6 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
   // Push recommendation onto history stack
   const handlePushItem = (newItem: SavedItem) => {
     setHistoryStack((prev) => [...prev, newItem]);
-  };
-
-  // YouTube ID extractor
-  const getEmbedYtId = (url: string): string | null => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
   };
 
   // Infinite Discovery Recommendation Matcher
@@ -182,7 +171,9 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
     setEditTags((prev) => prev.filter((t) => t !== tagName));
   };
 
-  const ytVideoId = getEmbedYtId(activeItem.url);
+  const ytVideoId = showYouTubeViewer ? getYouTubeVideoId(activeItem.url) : null;
+  const hasCustomVideo = Boolean(activeItem.customPreviewUrl && activeItem.customPreviewType === 'video');
+  const hasMediaViewer = hasCustomVideo || Boolean(ytVideoId);
   const recommendations = getRecommendations();
 
   return (
@@ -239,11 +230,10 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
 
         {/* Scrollable sheet body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 scrollbar-none">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* LEFT COLUMN: Media Preview Section */}
-            <div className="lg:col-span-6 space-y-4">
-              {activeItem.customPreviewUrl && activeItem.customPreviewType === 'video' ? (
-                /* Custom video loops overrides */
+          <div className={hasMediaViewer ? 'grid grid-cols-1 lg:grid-cols-12 gap-8' : 'max-w-3xl mx-auto space-y-6'}>
+            {/* Media Player (YouTube or custom uploaded video) + Source Quick Actions */}
+            <div className={hasMediaViewer ? 'lg:col-span-6 space-y-4' : 'space-y-4'}>
+              {hasCustomVideo ? (
                 <div className="relative rounded-xl overflow-hidden bg-theme-card/30 border border-theme-border aspect-video flex items-center justify-center">
                   <video
                     src={activeItem.customPreviewUrl}
@@ -253,71 +243,18 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                     className="w-full h-full object-contain"
                   />
                 </div>
-              ) : activeItem.platform === 'Music' || activeItem.format === 'Song' || activeItem.format === 'Playlist' ? (
-                /* Holographic Audio CD & Lyrics Player Room */
-                <div className="min-h-[350px] lg:h-[480px]">
-                  <AudioDeckPlayer item={activeItem} ytVideoId={ytVideoId} />
-                </div>
-              ) : activeItem.format === 'Image' || activeItem.platform === 'Pinterest' ? (
-                /* Moodboard tuning, adjustments & Color Extraction Palette */
-                <div className="min-h-[350px] lg:h-[480px]">
-                  <MoodboardStudio item={activeItem} />
-                </div>
-              ) : activeItem.format === 'Article' || activeItem.format === 'Book' || activeItem.platform === 'Google' ? (
-                /* Distraction-free typography reader Mode */
-                <div className="h-[350px] lg:h-[480px]">
-                  <ImmersiveReader item={activeItem} />
-                </div>
-              ) : activeItem.platform === 'Instagram' || activeItem.platform === 'Threads' || activeItem.format === 'Post' || activeItem.format === 'Comment' ? (
-                /* High-fidelity social feed mockup & reply stream simulator */
-                <div className="h-[350px] lg:h-[480px]">
-                  <SocialSimulator item={activeItem} />
-                </div>
-              ) : (
-                /* Default Fallback / YouTube Embed frame */
+              ) : ytVideoId ? (
                 <div className="relative rounded-xl overflow-hidden bg-theme-card/30 border border-theme-border aspect-video flex items-center justify-center">
-                  {ytVideoId ? (
-                    <iframe
-                      src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&mute=1`}
-                      title="YouTube video player"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      className="w-full h-full absolute inset-0"
-                    />
-                  ) : activeItem.format === 'Comment' || activeItem.format === 'Thread' ? (
-                    /* Stylized large quote rendering */
-                    <div
-                      className="w-full h-full flex flex-col justify-center p-8 text-center bg-theme-card/40 relative overflow-hidden"
-                      style={{ borderTop: `3px solid ${activeItem.brandColor || 'var(--color-theme-accent)'}` }}
-                    >
-                      <div className="text-3xl text-theme-muted font-display absolute top-4 left-6 opacity-30 select-none">“</div>
-                      <div className="text-lg text-theme-text font-medium italic relative z-10 leading-relaxed px-4">
-                        {activeItem.quoteText || activeItem.note}
-                      </div>
-                      <div className="text-3xl text-theme-muted font-display absolute bottom-2 right-6 opacity-30 select-none">”</div>
-                    </div>
-                  ) : (
-                    /* Standard Image zoom triggers */
-                    <div className="relative w-full h-full group">
-                      <img
-                        src={activeItem.customPreviewUrl || activeItem.previewUrl}
-                        alt={activeItem.header}
-                        className="w-full h-full object-cover cursor-zoom-in"
-                        onClick={() => setShowZoomModal(true)}
-                        referrerPolicy="no-referrer"
-                      />
-                      <button
-                        onClick={() => setShowZoomModal(true)}
-                        className="absolute bottom-3 right-3 bg-theme-card/95 backdrop-blur-md hover:bg-theme-sidebar p-2 border border-theme-border rounded-xl text-theme-text transition flex items-center space-x-1 text-xs cursor-pointer"
-                      >
-                        <ZoomIn size={14} />
-                        <span>Zoom View</span>
-                      </button>
-                    </div>
-                  )}
+                  <iframe
+                    src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=1&mute=1`}
+                    title="YouTube video player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="w-full h-full absolute inset-0"
+                  />
                 </div>
-              )}
+              ) : null}
 
               {/* Source Quick Actions */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 p-3.5 bg-theme-card/50 rounded-xl border border-theme-border">
@@ -360,7 +297,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
             </div>
 
             {/* RIGHT COLUMN: Metadata details, folder routing, tag editors */}
-            <div className="lg:col-span-6 space-y-6">
+            <div className={hasMediaViewer ? 'lg:col-span-6 space-y-6' : 'space-y-6'}>
               {isEditing ? (
                 // ------------------
                 // EDITING STATE PANEL
@@ -580,71 +517,48 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {recommendations.map((rec) => (
-                  <div
-                    key={rec.id}
-                    onClick={() => handlePushItem(rec)}
-                    className="group rounded-xl overflow-hidden border border-theme-border bg-theme-sidebar p-2.5 cursor-pointer hover:border-theme-accent transition-all duration-300"
-                  >
-                    <div className="relative aspect-video rounded-xl overflow-hidden bg-black mb-2">
-                      
-                      { (rec.customPreviewUrl || rec.previewUrl) ? (
-                        <img
-                          src={rec.customPreviewUrl || rec.previewUrl}
-                          alt={rec.header}
-                          className="w-full h-full object-cover group-hover:scale-105 transition"
-                          referrerPolicy="no-referrer"
-                        />
+                {recommendations.map((rec) => {
+                  const showRecThumb = showYouTubeViewer && Boolean(getYouTubeVideoId(rec.url));
+                  return (
+                    <div
+                      key={rec.id}
+                      onClick={() => handlePushItem(rec)}
+                      className="group rounded-xl overflow-hidden border border-theme-border bg-theme-sidebar p-2.5 cursor-pointer hover:border-theme-accent transition-all duration-300"
+                    >
+                      {showRecThumb ? (
+                        <div className="relative aspect-video rounded-xl overflow-hidden bg-black mb-2">
+                          <img
+                            src={rec.customPreviewUrl || rec.previewUrl}
+                            alt={rec.header}
+                            className="w-full h-full object-cover group-hover:scale-105 transition"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute top-1.5 left-1.5">
+                            <PlatformIcon platform={rec.platform} size={11} className="bg-black/60 rounded-xl p-0.5" />
+                          </div>
+                        </div>
                       ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-center p-2" style={{ backgroundColor: rec.brandColor ? `${rec.brandColor}22` : 'rgba(0,0,0,0.05)' }}>
-                           <span className="text-[10px] text-theme-text opacity-70">{rec.platform}</span>
+                        <div className="flex items-center space-x-1.5 mb-1.5">
+                          <PlatformIcon platform={rec.platform} size={13} />
+                          <span className="text-[10px] font-semibold text-theme-muted uppercase tracking-wider truncate">
+                            {rec.platform}
+                          </span>
                         </div>
                       )}
-    
-                      <div className="absolute top-1.5 left-1.5">
-                        <PlatformIcon platform={rec.platform} size={11} className="bg-black/60 rounded-xl p-0.5" />
+                      <div className="text-xs font-semibold text-theme-text group-hover:text-theme-accent truncate transition">
+                        {rec.header}
+                      </div>
+                      <div className="text-[10px] text-theme-muted truncate mt-0.5">
+                        {rec.platform} • {rec.format}
                       </div>
                     </div>
-                    <div className="text-xs font-semibold text-theme-text group-hover:text-theme-accent truncate transition">
-                      {rec.header}
-                    </div>
-                    <div className="text-[10px] text-theme-muted truncate mt-0.5">
-                      {rec.platform} • {rec.format}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       </div>
-
-      {/* FULLSIZE ZOOM IMAGE MODAL */}
-      {showZoomModal && (
-        <div
-          className="fixed inset-0 z-55 flex items-center justify-center p-4 bg-black/95 backdrop-blur-md cursor-zoom-out"
-          onClick={() => setShowZoomModal(false)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] overflow-hidden rounded-xl">
-            <img
-              src={activeItem.customPreviewUrl || activeItem.previewUrl}
-              alt={activeItem.header}
-              className="w-full h-auto max-h-[85vh] object-contain select-none"
-              referrerPolicy="no-referrer"
-            />
-            <button
-              onClick={() => setShowZoomModal(false)}
-              className="absolute top-4 right-4 bg-black/60 hover:bg-black/95 p-2 rounded-xl text-white border border-theme-border cursor-pointer"
-            >
-              <X size={20} />
-            </button>
-            <div className="absolute bottom-4 inset-x-4 text-center bg-theme-card/90 backdrop-blur-md p-3.5 rounded-xl border border-theme-border max-w-lg mx-auto">
-              <span className="text-sm font-semibold text-theme-text block truncate">{activeItem.header}</span>
-              <span className="text-xs text-theme-muted block mt-0.5">{activeItem.url}</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

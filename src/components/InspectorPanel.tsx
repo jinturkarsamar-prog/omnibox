@@ -8,7 +8,6 @@ import {
   Tag as TagIcon,
   Plus,
   ArrowLeft,
-  ZoomIn,
   Globe,
   Edit2,
   Minimize2,
@@ -19,21 +18,19 @@ import {
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
-import { AudioDeckPlayer } from './AudioDeckPlayer';
-import { MoodboardStudio } from './MoodboardStudio';
-import { ImmersiveReader } from './ImmersiveReader';
-import { SocialSimulator } from './SocialSimulator';
 import {
   downloadBlob,
   getItemMarkdownFilename,
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
+import { getYouTubeVideoId } from '../utils/youtube';
 
 interface InspectorPanelProps {
   item: SavedItem;
   allItems: SavedItem[];
   folders: Folder[];
   tags: Tag[];
+  showYouTubeViewer?: boolean;
   onClose: () => void;
   onUpdateItem: (updated: SavedItem) => void;
   onTagClick?: (tagName: string) => void;
@@ -46,6 +43,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   allItems,
   folders,
   tags,
+  showYouTubeViewer = true,
   onClose,
   onUpdateItem,
   onTagClick,
@@ -66,8 +64,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   // Tag search/adding state
   const [tagInput, setTagInput] = useState('');
 
-  // Zoom Image Overlay Modal
-  const [showZoomModal, setShowZoomModal] = useState(false);
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
 
   // Sync active item state
@@ -113,12 +109,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     if (historyStack.length > 1) {
       setHistoryStack((prev) => prev.slice(0, -1));
     }
-  };
-
-  const getEmbedYtId = (url: string): string | null => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
   };
 
   const getRecommendations = (): SavedItem[] => {
@@ -176,7 +166,8 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     setEditTags((prev) => prev.filter((t) => t !== tagName));
   };
 
-  const ytVideoId = getEmbedYtId(activeItem.url);
+  const ytVideoId = showYouTubeViewer ? getYouTubeVideoId(activeItem.url) : null;
+  const hasCustomVideo = Boolean(activeItem.customPreviewUrl && activeItem.customPreviewType === 'video');
   const recommendations = getRecommendations();
 
   return (
@@ -246,43 +237,19 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
       {/* Main Inspector Scroll Area */}
       <div className="flex-1 overflow-y-auto p-5 space-y-5 scrollbar-thin scrollbar-thumb-white/10">
-        {/* Dynamic Aspect Ratio Immersive Previews & Players */}
-        <div className="shrink-0">
-          {activeItem.customPreviewUrl && activeItem.customPreviewType === 'video' ? (
-            /* Custom video loops overrides */
+        {/* Media Player (YouTube or custom uploaded video) */}
+        {(hasCustomVideo || ytVideoId) && (
+          <div className="shrink-0">
             <div className="relative rounded-xl overflow-hidden bg-theme-card/30 border border-theme-border aspect-video flex items-center justify-center shrink-0">
-              <video
-                src={activeItem.customPreviewUrl}
-                controls
-                autoPlay
-                loop
-                className="w-full h-full object-contain"
-              />
-            </div>
-          ) : activeItem.platform === 'Music' || activeItem.format === 'Song' || activeItem.format === 'Playlist' ? (
-            /* Holographic Audio CD & Lyrics Player Room */
-            <div className="h-[340px] w-full">
-              <AudioDeckPlayer item={activeItem} ytVideoId={ytVideoId} />
-            </div>
-          ) : activeItem.format === 'Image' || activeItem.platform === 'Pinterest' ? (
-            /* Moodboard tuning, adjustments & Color Extraction Palette */
-            <div className="h-[340px] w-full">
-              <MoodboardStudio item={activeItem} />
-            </div>
-          ) : activeItem.format === 'Article' || activeItem.format === 'Book' || activeItem.platform === 'Google' ? (
-            /* Distraction-free typography reader Mode */
-            <div className="h-[340px] w-full">
-              <ImmersiveReader item={activeItem} />
-            </div>
-          ) : activeItem.platform === 'Instagram' || activeItem.platform === 'Threads' || activeItem.format === 'Post' || activeItem.format === 'Comment' ? (
-            /* High-fidelity social feed mockup & reply stream simulator */
-            <div className="h-[340px] w-full">
-              <SocialSimulator item={activeItem} />
-            </div>
-          ) : (
-            /* Default Fallback / YouTube Embed frame */
-            <div className="relative rounded-xl overflow-hidden bg-theme-card/30 border border-theme-border aspect-video flex items-center justify-center shrink-0">
-              {ytVideoId ? (
+              {hasCustomVideo ? (
+                <video
+                  src={activeItem.customPreviewUrl}
+                  controls
+                  autoPlay
+                  loop
+                  className="w-full h-full object-contain"
+                />
+              ) : (
                 <iframe
                   src={`https://www.youtube.com/embed/${ytVideoId}?autoplay=0&mute=1`}
                   title="YouTube video player"
@@ -291,40 +258,10 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                   allowFullScreen
                   className="w-full h-full absolute inset-0"
                 />
-              ) : activeItem.format === 'Comment' || activeItem.format === 'Thread' ? (
-                /* Stylized large quote rendering */
-                <div
-                  className="w-full h-full flex flex-col justify-center p-5 text-center bg-theme-card/40 relative overflow-hidden"
-                  style={{ borderTop: `3px solid ${activeItem.brandColor || 'var(--color-theme-accent)'}` }}
-                >
-                  <div className="text-xl text-theme-muted font-display absolute top-2 left-4 opacity-20 select-none">“</div>
-                  <div className="text-xs text-theme-text font-medium italic relative z-10 leading-relaxed px-2">
-                    {activeItem.quoteText || activeItem.note}
-                  </div>
-                  <div className="text-xl text-theme-muted font-display absolute bottom-1 right-4 opacity-20 select-none">”</div>
-                </div>
-              ) : (
-                /* Standard Image zoom triggers */
-                <div className="relative w-full h-full group">
-                  <img
-                    src={activeItem.customPreviewUrl || activeItem.previewUrl}
-                    alt={activeItem.header}
-                    className="w-full h-full object-cover cursor-zoom-in"
-                    onClick={() => setShowZoomModal(true)}
-                    referrerPolicy="no-referrer"
-                  />
-                  <button
-                    onClick={() => setShowZoomModal(true)}
-                    className="absolute bottom-2 right-2 bg-theme-card/90 backdrop-blur-md hover:bg-theme-sidebar p-1.5 border border-theme-border rounded-xl text-theme-text text-[10px] font-semibold transition flex items-center space-x-1 cursor-pointer"
-                  >
-                    <ZoomIn size={11} />
-                    <span>Zoom</span>
-                  </button>
-                </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Action button link */}
         <div className="space-y-2 p-2.5 bg-theme-card/35 rounded-xl border border-theme-border shrink-0">
@@ -557,60 +494,41 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              {recommendations.map((rec) => (
-                <div
-                  key={rec.id}
-                  onClick={() => handlePushItem(rec)}
-                  className="group rounded-xl overflow-hidden border border-theme-border bg-theme-card/30 p-2 cursor-pointer hover:border-theme-accent transition-all duration-200"
-                >
-                  <div className="relative aspect-video rounded-xl overflow-hidden bg-black mb-1.5">
-                    
-                      { (rec.customPreviewUrl || rec.previewUrl) ? (
+              {recommendations.map((rec) => {
+                const showRecThumb = showYouTubeViewer && Boolean(getYouTubeVideoId(rec.url));
+                return (
+                  <div
+                    key={rec.id}
+                    onClick={() => handlePushItem(rec)}
+                    className="group rounded-xl overflow-hidden border border-theme-border bg-theme-card/30 p-2 cursor-pointer hover:border-theme-accent transition-all duration-200"
+                  >
+                    {showRecThumb ? (
+                      <div className="relative aspect-video rounded-xl overflow-hidden bg-black mb-1.5">
                         <img
                           src={rec.customPreviewUrl || rec.previewUrl}
                           alt={rec.header}
                           className="w-full h-full object-cover group-hover:scale-105 transition"
                           referrerPolicy="no-referrer"
                         />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-center p-2" style={{ backgroundColor: rec.brandColor ? `${rec.brandColor}22` : 'rgba(0,0,0,0.05)' }}>
-                           <span className="text-[10px] text-theme-text opacity-70">{rec.platform}</span>
-                        </div>
-                      )}
-    
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-1.5 mb-1">
+                        <PlatformIcon platform={rec.platform} size={11} />
+                        <span className="text-[9px] font-bold text-theme-muted uppercase tracking-wider truncate">
+                          {rec.platform}
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-[10px] font-bold text-theme-text group-hover:text-theme-accent truncate">
+                      {rec.header}
+                    </div>
                   </div>
-                  <div className="text-[10px] font-bold text-theme-text group-hover:text-theme-accent truncate">
-                    {rec.header}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       </div>
-
-      {/* FULLSIZE ZOOM IMAGE MODAL */}
-      {showZoomModal && (
-        <div
-          className="fixed inset-0 z-[65] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md cursor-zoom-out"
-          onClick={() => setShowZoomModal(false)}
-        >
-          <div className="relative max-w-2xl max-h-[85vh] overflow-hidden rounded-xl">
-            <img
-              src={activeItem.customPreviewUrl || activeItem.previewUrl}
-              alt={activeItem.header}
-              className="w-full h-auto max-h-[80vh] object-contain select-none"
-              referrerPolicy="no-referrer"
-            />
-            <button
-              onClick={() => setShowZoomModal(false)}
-              className="absolute top-4 right-4 bg-black/60 hover:bg-black/95 p-1.5 rounded-xl text-white border border-theme-border cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
