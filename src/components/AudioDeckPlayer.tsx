@@ -11,7 +11,7 @@ const SIMULATED_LYRICS = [
   { time: 0, text: "🎵 [Intro Instrumental - Holographic Beat]" },
   { time: 10, text: "Saved this precious moment in my digital memory..." },
   { time: 22, text: "Pasted the URL, categorized so clean and free..." },
-  { time: 35, text: "Local inference running, private models in the zone..." },
+  { time: 35, text: "Local vault running, private library in the zone..." },
   { time: 48, text: "All my links are organized, a space to call my own..." },
   { time: 62, text: "🎵 [Chorus - Elevated Synth Waves]" },
   { time: 75, text: "OmniBox, guide my focus through the digital stream..." },

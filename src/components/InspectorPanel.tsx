@@ -12,7 +12,6 @@ import {
   Globe,
   Edit2,
   Minimize2,
-  Sparkles,
   Maximize2,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
@@ -61,73 +60,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
   // Zoom Image Overlay Modal
   const [showZoomModal, setShowZoomModal] = useState(false);
-
-  // AI Extraction Hub States
-  const [isAiScraping, setIsAiScraping] = useState(false);
-  const [aiScrapeError, setAiScrapeError] = useState<string | null>(null);
-
-  const handleOnDemandScrape = async () => {
-    setIsAiScraping(true);
-    setAiScrapeError(null);
-
-    try {
-      const aiMode = localStorage.getItem('omnibox_ai_mode') || 'lm-studio';
-      const customAiApiKey = localStorage.getItem('omnibox_custom_ai_api_key') || '';
-      const customAiApiUrl = localStorage.getItem('omnibox_custom_ai_api_url') || 'http://localhost:1234/v1';
-      const customAiModel = localStorage.getItem('omnibox_custom_ai_model') || '';
-      const aiCustomInstructions = localStorage.getItem('omnibox_ai_custom_instructions') || '';
-      const aiTemperatureStr = localStorage.getItem('omnibox_ai_temperature');
-      const aiTemperature = aiTemperatureStr ? parseFloat(aiTemperatureStr) : 0.2;
-      const aiDefaultTags = localStorage.getItem('omnibox_ai_default_tags') || '';
-      const aiDefaultThumbnail = localStorage.getItem('omnibox_ai_default_thumbnail') || '';
-
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: activeItem.url,
-          aiMode,
-          customAiApiKey,
-          customAiUrl: customAiApiUrl,
-          customAiApiUrl,
-          customAiModel,
-          aiCustomInstructions,
-          aiTemperature,
-          aiDefaultTags,
-          aiDefaultThumbnail,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Local LM Studio API / AI server is offline or returned an error.');
-      }
-
-      const data = await response.json();
-
-      const updated: SavedItem = {
-        ...activeItem,
-        header: data.title || activeItem.header,
-        note: data.note || activeItem.note,
-        tags: data.tags || activeItem.tags,
-        previewUrl: data.previewUrl || activeItem.previewUrl,
-        platform: data.platform || activeItem.platform,
-        format: data.format || activeItem.format,
-        quoteText: data.quoteText || activeItem.quoteText,
-        brandColor: data.brandColor || activeItem.brandColor,
-      };
-
-      onUpdateItem(updated);
-
-      // Sync local navigation stack
-      setHistoryStack((prev) =>
-        prev.map((i) => (i.id === activeItem.id ? updated : i))
-      );
-    } catch (err: any) {
-      setAiScrapeError(err?.message || 'Failed to trigger AI auto-categorization.');
-    } finally {
-      setIsAiScraping(false);
-    }
-  };
 
   // Sync active item state
   useEffect(() => {
@@ -493,50 +425,6 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 {activeItem.header}
               </h2>
             </div>
-
-            {/* AI Extraction & Auto-Categorization Hub */}
-            {activeItem.url && activeItem.url !== 'https://omnibox.local' && (
-              <div className="p-3.5 bg-theme-card/35 border border-theme-border rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-extrabold text-theme-muted uppercase tracking-widest flex items-center space-x-1">
-                    <Sparkles size={11} className="text-theme-accent animate-pulse" />
-                    <span>AI Extraction Hub</span>
-                  </span>
-                  <span className="text-[8px] text-theme-accent font-bold uppercase tracking-wider">
-                    {localStorage.getItem('omnibox_ai_mode') === 'lm-studio' || !localStorage.getItem('omnibox_ai_mode') ? 'LM Studio (Local)' : localStorage.getItem('omnibox_ai_mode')}
-                  </span>
-                </div>
-
-                <p className="text-[9px] text-theme-muted leading-relaxed">
-                  Run local inference to extract title, categorization tags, and clean notes automatically.
-                </p>
-
-                <button
-                  type="button"
-                  disabled={isAiScraping}
-                  onClick={handleOnDemandScrape}
-                  className="w-full bg-theme-accent hover:bg-theme-hover disabled:opacity-50 text-white font-bold py-2 px-3 rounded-xl text-[11px] flex items-center justify-center space-x-1 cursor-pointer transition shadow-md"
-                >
-                  {isAiScraping ? (
-                    <>
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Extracting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={11} />
-                      <span>⚡ AI Auto-Extract</span>
-                    </>
-                  )}
-                </button>
-
-                {aiScrapeError && (
-                  <div className="text-[9px] text-rose-400 bg-rose-500/10 border border-rose-500/15 px-2 py-1 rounded-lg text-center leading-normal">
-                    {aiScrapeError}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Note block */}
             {activeItem.note && (

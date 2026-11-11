@@ -93,7 +93,7 @@ export const QuickShareOverlay: React.FC<QuickShareOverlayProps> = ({
                   ? 'Saved! Switch back to your video or open library.'
                   : !isAutoClosePaused && item
                     ? `Returning to your video in ${(countdownMs / 1000).toFixed(1)}s... (tap card to stay)`
-                    : 'Saved locally — AI metadata enriching silently'}
+                    : 'Saved locally — fetching link preview silently'}
               </span>
             </div>
           </div>

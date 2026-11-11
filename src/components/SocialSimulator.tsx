@@ -18,7 +18,7 @@ interface MockComment {
 
 const INITIAL_COMMENTS: MockComment[] = [
   { id: 'c1', user: 'creative_curator', avatar: 'CC', text: 'This looks so incredibly detailed. Adding this reference to my current moodboard instantly!', likes: 12, time: '2h ago', isVerified: true },
-  { id: 'c2', user: 'dev_pioneer', avatar: 'DP', text: 'Stunning layout! The color coordination is on point. Local LM Studio API works wonders.', likes: 4, time: '5h ago' },
+  { id: 'c2', user: 'dev_pioneer', avatar: 'DP', text: 'Stunning layout! The color coordination is on point. Instant link capture works wonders.', likes: 4, time: '5h ago' },
   { id: 'c3', user: 'design_architect', avatar: 'DA', text: 'Cleanest design bookmarking tool I’ve encountered so far. Pure elegance.', likes: 18, time: '1d ago', isVerified: true },
 ];
 

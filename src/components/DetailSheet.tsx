@@ -13,7 +13,6 @@ import {
   MessageSquare,
   Globe,
   Trash,
-  Sparkles,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
@@ -58,73 +57,6 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
 
   // Zoom Image Modal State
   const [showZoomModal, setShowZoomModal] = useState(false);
-
-  // AI Extraction Hub States
-  const [isAiScraping, setIsAiScraping] = useState(false);
-  const [aiScrapeError, setAiScrapeError] = useState<string | null>(null);
-
-  const handleOnDemandScrape = async () => {
-    setIsAiScraping(true);
-    setAiScrapeError(null);
-
-    try {
-      const aiMode = localStorage.getItem('omnibox_ai_mode') || 'lm-studio';
-      const customAiApiKey = localStorage.getItem('omnibox_custom_ai_api_key') || '';
-      const customAiApiUrl = localStorage.getItem('omnibox_custom_ai_api_url') || 'http://localhost:1234/v1';
-      const customAiModel = localStorage.getItem('omnibox_custom_ai_model') || '';
-      const aiCustomInstructions = localStorage.getItem('omnibox_ai_custom_instructions') || '';
-      const aiTemperatureStr = localStorage.getItem('omnibox_ai_temperature');
-      const aiTemperature = aiTemperatureStr ? parseFloat(aiTemperatureStr) : 0.2;
-      const aiDefaultTags = localStorage.getItem('omnibox_ai_default_tags') || '';
-      const aiDefaultThumbnail = localStorage.getItem('omnibox_ai_default_thumbnail') || '';
-
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: activeItem.url,
-          aiMode,
-          customAiApiKey,
-          customAiUrl: customAiApiUrl, // Make sure both keys are provided for robust server parsing
-          customAiApiUrl,
-          customAiModel,
-          aiCustomInstructions,
-          aiTemperature,
-          aiDefaultTags,
-          aiDefaultThumbnail,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Local LM Studio API / AI server is offline or returned an error.');
-      }
-
-      const data = await response.json();
-
-      const updated: SavedItem = {
-        ...activeItem,
-        header: data.title || activeItem.header,
-        note: data.note || activeItem.note,
-        tags: data.tags || activeItem.tags,
-        previewUrl: data.previewUrl || activeItem.previewUrl,
-        platform: data.platform || activeItem.platform,
-        format: data.format || activeItem.format,
-        quoteText: data.quoteText || activeItem.quoteText,
-        brandColor: data.brandColor || activeItem.brandColor,
-      };
-
-      onUpdateItem(updated);
-
-      // Sync local navigation stack
-      setHistoryStack((prev) =>
-        prev.map((i) => (i.id === activeItem.id ? updated : i))
-      );
-    } catch (err: any) {
-      setAiScrapeError(err?.message || 'Failed to trigger AI auto-categorization.');
-    } finally {
-      setIsAiScraping(false);
-    }
-  };
 
   // Sync state whenever active item in the stack changes
   useEffect(() => {
@@ -498,50 +430,6 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                       {activeItem.header}
                     </h2>
                   </div>
-
-                  {/* AI Extraction & Auto-Categorization Tool */}
-                  {activeItem.url && activeItem.url !== 'https://omnibox.local' && (
-                    <div className="p-4 bg-theme-card/35 border border-theme-border rounded-xl space-y-3 shadow-inner">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-theme-muted uppercase tracking-widest flex items-center space-x-1.5">
-                          <Sparkles size={13} className="text-theme-accent animate-pulse" />
-                          <span>AI Extraction Hub</span>
-                        </span>
-                        <span className="text-[9px] text-theme-accent font-bold uppercase tracking-widest">
-                          {localStorage.getItem('omnibox_ai_mode') === 'lm-studio' || !localStorage.getItem('omnibox_ai_mode') ? 'LM Studio (Local)' : localStorage.getItem('omnibox_ai_mode')}
-                        </span>
-                      </div>
-
-                      <p className="text-[10px] text-theme-muted leading-relaxed">
-                        Re-process this link using LM Studio to automatically extract the optimal title, categorization formats, and clean summarized notes.
-                      </p>
-
-                      <button
-                        type="button"
-                        disabled={isAiScraping}
-                        onClick={handleOnDemandScrape}
-                        className="w-full bg-theme-accent hover:bg-theme-hover disabled:opacity-50 text-white font-bold py-2.5 px-3.5 rounded-xl text-xs flex items-center justify-center space-x-1.5 cursor-pointer transition-all shadow-md"
-                      >
-                        {isAiScraping ? (
-                          <>
-                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>AI Analyzing & Categorizing...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={12} />
-                            <span>⚡ Run AI Auto-Extraction</span>
-                          </>
-                        )}
-                      </button>
-
-                      {aiScrapeError && (
-                        <div className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/15 px-3 py-2 rounded-lg text-center leading-normal">
-                          {aiScrapeError}
-                        </div>
-                      )}
-                    </div>
-                  )}
 
                   {activeItem.note && (
                     <div className="p-4 bg-theme-card/55 border border-theme-border rounded-xl space-y-1.5">

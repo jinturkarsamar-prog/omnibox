@@ -1,7 +1,6 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -207,44 +206,9 @@ function heuristicScrape(url: string): any {
   return { title, note, platform, format, previewUrl, tags, brandColor, quoteText };
 }
 
-// Initialize Gemini Client
-const aiApiKey = process.env.GEMINI_API_KEY;
-let ai: GoogleGenAI | null = null;
-
-if (aiApiKey) {
-  ai = new GoogleGenAI({
-    apiKey: aiApiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      },
-    },
-  });
-  console.log('Gemini AI successfully initialized for OmniBox server-side link scraping!');
-} else {
-  console.log('Gemini AI API Key not found. Falling back to fast heuristic metadata extraction.');
-}
-
-// Server status endpoint (to check built-in AI availability)
-app.get('/api/status', (req, res) => {
-  res.json({
-    builtInGeminiAvailable: !!process.env.GEMINI_API_KEY,
-  });
-});
-
 // Scrape URL endpoint
 app.post('/api/scrape', async (req, res) => {
-  const { 
-    url, 
-    aiMode = 'built-in', 
-    customAiApiKey, 
-    customAiApiUrl, 
-    customAiModel,
-    aiCustomInstructions = '',
-    aiTemperature = 0.2,
-    aiDefaultTags = '',
-    aiDefaultThumbnail = '',
-  } = req.body;
+  const { url } = req.body;
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
@@ -508,7 +472,6 @@ app.post('/api/scrape', async (req, res) => {
 
   // 3. Fast YouTube oEmbed lookup + general scraping flow
   const fallback = heuristicScrape(url);
-  let htmlContent = '';
   let enrichedMetadata: { title?: string; note?: string; previewUrl?: string } = {};
 
   const isYouTube = lowercaseUrl.includes('youtube.com') || lowercaseUrl.includes('youtu.be');
@@ -543,288 +506,17 @@ app.post('/api/scrape', async (req, res) => {
         // Fast regex extract of title, preview images, open-graph tags
         enrichedMetadata = extractHtmlMetadata(fullText, url);
         console.log(`[OmniBox] Fast crawled page successfully. Enriched title: "${enrichedMetadata.title}", image: "${enrichedMetadata.previewUrl}"`);
-
-        // Snippet matching for LLM input
-        const headMatch = fullText.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-        if (headMatch) {
-          htmlContent = headMatch[1].substring(0, 15000);
-        } else {
-          htmlContent = fullText.substring(0, 8000);
-        }
       }
     } catch (e) {
       console.log(`[OmniBox] Fast crawl bypassed or timed out for URL: ${url}.`);
     }
   }
 
-  // Inject crawled metadata into fallback so the offline/no-ai mode is high fidelity!
+  // Inject crawled metadata into fallback
   if (enrichedMetadata.title) fallback.title = enrichedMetadata.title;
   if (enrichedMetadata.note) fallback.note = enrichedMetadata.note;
   if (enrichedMetadata.previewUrl) fallback.previewUrl = enrichedMetadata.previewUrl;
 
-  // Check active AI choice
-  let activeAi = ai;
-  let useOpenAiCompatible = false;
-  let openAiEndpoint = '';
-  let openAiKey = '';
-  let openAiModel = '';
-
-  if (aiMode === 'none') {
-    activeAi = null;
-    console.log(`[OmniBox] AI disabled by settings. Returning enriched heuristic fallback instantly.`);
-    return res.json(fallback);
-  } else if (aiMode === 'custom') {
-    if (customAiApiKey && customAiApiKey.trim()) {
-      try {
-        console.log(`[OmniBox] Using custom client-side Gemini API key.`);
-        activeAi = new GoogleGenAI({
-          apiKey: customAiApiKey.trim(),
-          httpOptions: {
-            headers: { 'User-Agent': 'aistudio-build' }
-          }
-        });
-      } catch (e) {
-        console.error('[OmniBox] Failed to initialize custom client-side Gemini:', e);
-        activeAi = null;
-      }
-    } else {
-      console.log(`[OmniBox] Custom AI mode requested but no Custom API Key was provided. Falling back to heuristics.`);
-      activeAi = null;
-    }
-  } else if (aiMode === 'openai' || aiMode === 'ollama' || aiMode === 'lm-studio') {
-    useOpenAiCompatible = true;
-    activeAi = null;
-
-    // Resolve endpoint URL
-    let targetEndpoint = (customAiApiUrl || '').trim();
-    if (!targetEndpoint) {
-      if (aiMode === 'openai') {
-        targetEndpoint = 'https://api.openai.com/v1/chat/completions';
-      } else if (aiMode === 'ollama') {
-        targetEndpoint = 'http://localhost:11434/v1/chat/completions';
-      } else if (aiMode === 'lm-studio') {
-        targetEndpoint = 'http://localhost:1234/v1/chat/completions';
-      }
-    } else {
-      if (!targetEndpoint.endsWith('/chat/completions') && !targetEndpoint.endsWith('/chat/completions/')) {
-        targetEndpoint = targetEndpoint.replace(/\/$/, '');
-        targetEndpoint = `${targetEndpoint}/chat/completions`;
-      }
-    }
-    openAiEndpoint = targetEndpoint;
-
-    // Resolve API key
-    openAiKey = (customAiApiKey || '').trim();
-
-    // Resolve model name
-    let targetModel = (customAiModel || '').trim();
-    if (!targetModel) {
-      if (aiMode === 'openai') {
-        targetModel = 'gpt-4o-mini';
-      } else if (aiMode === 'ollama') {
-        targetModel = 'llama3';
-      } else if (aiMode === 'lm-studio') {
-        targetModel = 'unspecified';
-      }
-    }
-    openAiModel = targetModel;
-  }
-
-  // If no AI is available and not using OpenAI compatible flow, return the enriched fallback instantly!
-  if (!activeAi && !useOpenAiCompatible) {
-    return res.json(fallback);
-  }
-
-  const systemPrompt = `You are OmniBox AI, a high-quality metadata parser and media aggregator. Your task is to analyze the user's provided URL and optional HTML tags, and return a clean, highly polished and categorized media item metadata.
-Categorize into one of the exact Platform choices: YouTube, Music, Instagram, Threads, Pinterest, Google, Play Store, Other.
-Categorize into one of the exact Format choices: Video, Article, Profile, Comment, Song, Playlist, Artist, App, Book, Thread, Image, Post, Website, Other.
-
-GUIDELINES:
-- Title: Extremely clean, short, human-readable. Keep it engaging.
-- Note: A neat, context-rich 1-2 sentence description summarizing the content.
-- Platform & Format: Correctly match the domain or content type.
-- PreviewUrl: Select a valid image URL from the scraped HTML (og:image, twitter:image, thumbnail) or use the crawled previewUrl if provided. If none, return an empty string for previewUrl. DO NOT invent placeholders.
-- Tags: Suggest 2-3 logical tags.
-- BrandColor: Return the hex brand color code (e.g., #ff0000 for YouTube, #e1306c for Instagram, #000000 for Threads, #bd081c for Pinterest).
-- QuoteText: If format is Comment, Thread, or Post, parse and extract the core text snippet to use as a stylized Quote card.
-
-IMPORTANT: Return ONLY a valid JSON object matching this schema. Do NOT wrap it in markdown codeblocks or say anything else besides the raw JSON string:
-{
-  "title": "...",
-  "note": "...",
-  "platform": "...",
-  "format": "...",
-  "previewUrl": "...",
-  "tags": ["...", "..."],
-  "brandColor": "...",
-  "quoteText": "..."
-}`;
-
-  let finalSystemPrompt = systemPrompt;
-  if (aiCustomInstructions && aiCustomInstructions.trim()) {
-    finalSystemPrompt = `${systemPrompt}\n\nUSER-SPECIFIED CUSTOM DIRECTIVES:\n${aiCustomInstructions.trim()}`;
-  }
-
-  let defaultTagsList: string[] = [];
-  if (aiDefaultTags && aiDefaultTags.trim()) {
-    defaultTagsList = aiDefaultTags.split(',')
-      .map(t => t.trim())
-      .filter(t => t.length > 0);
-  }
-
-  const contents = `URL: ${url}
-Crawled Title: ${enrichedMetadata.title || 'Unknown'}
-Crawled Preview Image: ${enrichedMetadata.previewUrl || 'None'}
-HTML Context Snippet:
-${htmlContent || 'No HTML context available (Direct URL inference needed)'}`;
-
-  if (useOpenAiCompatible) {
-    try {
-      console.log(`[OmniBox] Routing to OpenAI-compatible provider. Endpoint: ${openAiEndpoint}, Model: ${openAiModel}`);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (openAiKey) {
-        headers['Authorization'] = `Bearer ${openAiKey}`;
-      }
-
-      const body: any = {
-        model: openAiModel,
-        messages: [
-          { role: 'system', content: finalSystemPrompt },
-          { role: 'user', content: contents }
-        ],
-        temperature: typeof aiTemperature === 'number' ? aiTemperature : 0.2
-      };
-
-      if (openAiEndpoint.includes('api.openai.com')) {
-        body.response_format = { type: 'json_object' };
-      }
-
-      const openAiRes = await fetchWithTimeout(openAiEndpoint, 8000, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body)
-      });
-
-      if (openAiRes.ok) {
-        const jsonResult = await openAiRes.json();
-        const rawText = jsonResult.choices?.[0]?.message?.content || '';
-        if (rawText) {
-          let cleanText = rawText.trim();
-          if (cleanText.startsWith('```')) {
-            const match = cleanText.match(/```(?:json)?([\s\S]*?)```/);
-            if (match) {
-              cleanText = match[1].trim();
-            }
-          }
-          const parsed = JSON.parse(cleanText);
-          const ytId = getYoutubeId(url);
-          if (ytId) {
-            parsed.previewUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-          }
-
-          let finalPreviewUrl = parsed.previewUrl || fallback.previewUrl;
-          if (aiDefaultThumbnail && aiDefaultThumbnail.trim()) {
-            if (!finalPreviewUrl || finalPreviewUrl.includes('images.unsplash.com') || finalPreviewUrl.includes('placeholder')) {
-              finalPreviewUrl = aiDefaultThumbnail.trim();
-            }
-          }
-
-          let finalTags = parsed.tags && parsed.tags.length > 0 ? parsed.tags : fallback.tags;
-          if (defaultTagsList.length > 0) {
-            finalTags = Array.from(new Set([...finalTags, ...defaultTagsList]));
-          }
-
-          return res.json({
-            title: parsed.title || fallback.title,
-            note: parsed.note || fallback.note,
-            platform: parsed.platform || fallback.platform,
-            format: parsed.format || fallback.format,
-            previewUrl: finalPreviewUrl,
-            tags: finalTags,
-            brandColor: parsed.brandColor || fallback.brandColor,
-            quoteText: parsed.quoteText || fallback.quoteText
-          });
-        }
-      } else {
-        const errText = await openAiRes.text();
-        console.error(`[OmniBox] OpenAI-compatible completion failed with status ${openAiRes.status}:`, errText);
-      }
-    } catch (err) {
-      console.error('[OmniBox] OpenAI-compatible metadata generation failed:', err);
-    }
-
-    return res.json(fallback);
-  }
-
-  try {
-    console.log(`[OmniBox] Calling Gemini AI for advanced parsing...`);
-    const response = await activeAi.models.generateContent({
-      model: 'gemini-3.5-flash',
-      contents: contents,
-      config: {
-        systemInstruction: finalSystemPrompt,
-        temperature: typeof aiTemperature === 'number' ? aiTemperature : 0.2,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: 'Clean, appealing title for the media content.' },
-            note: { type: Type.STRING, description: 'A highly readable summary or note describing what this is.' },
-            platform: { type: Type.STRING, description: 'YouTube, Music, Instagram, Threads, Pinterest, Google, Play Store, or Other' },
-            format: { type: Type.STRING, description: 'Video, Article, Profile, Comment, Song, Playlist, Artist, App, Book, Thread, Image, Post, Website, or Other' },
-            previewUrl: { type: Type.STRING, description: 'High-res image URL (og:image, thumbnail, or polished Unsplash placeholder).' },
-            tags: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: 'List of 2-3 recommended tags.'
-            },
-            brandColor: { type: Type.STRING, description: 'Primary branding hex color code, starting with #' },
-            quoteText: { type: Type.STRING, description: 'If Comment or Thread or Post, the quote text itself. Keep it below 280 characters.' }
-          },
-          required: ['title', 'note', 'platform', 'format', 'previewUrl', 'tags']
-        }
-      }
-    });
-
-    const textResult = response.text;
-    if (textResult) {
-      const parsed = JSON.parse(textResult.trim());
-      // Re-apply special YouTube thumbnail tricks if Gemini generated a generic link
-      const ytId = getYoutubeId(url);
-      if (ytId) {
-        parsed.previewUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-      }
-
-      let finalPreviewUrl = parsed.previewUrl || fallback.previewUrl;
-      if (aiDefaultThumbnail && aiDefaultThumbnail.trim()) {
-        if (!finalPreviewUrl || finalPreviewUrl.includes('images.unsplash.com') || finalPreviewUrl.includes('placeholder')) {
-          finalPreviewUrl = aiDefaultThumbnail.trim();
-        }
-      }
-
-      let finalTags = parsed.tags && parsed.tags.length > 0 ? parsed.tags : fallback.tags;
-      if (defaultTagsList.length > 0) {
-        finalTags = Array.from(new Set([...finalTags, ...defaultTagsList]));
-      }
-
-      return res.json({
-        title: parsed.title || fallback.title,
-        note: parsed.note || fallback.note,
-        platform: parsed.platform || fallback.platform,
-        format: parsed.format || fallback.format,
-        previewUrl: finalPreviewUrl,
-        tags: finalTags,
-        brandColor: parsed.brandColor || fallback.brandColor,
-        quoteText: parsed.quoteText || fallback.quoteText
-      });
-    }
-  } catch (err) {
-    console.error('[OmniBox] Gemini metadata parsing failed, returning enriched heuristic scraping result instead:', err);
-  }
-
-  // Graceful fallback to enriched heuristics
   return res.json(fallback);
 });
 

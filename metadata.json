@@ -2,7 +2,5 @@
   "name": "OmniBox-v3",
   "description": "A universal, local-first content aggregator and organizer for saving, tagging, and previewing media from across the web.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

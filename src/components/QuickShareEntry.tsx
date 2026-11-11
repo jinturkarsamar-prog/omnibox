@@ -89,14 +89,6 @@ async function enrichInBackground(itemId: string, targetUrl: string, onUpdated: 
         signal: controller.signal,
         body: JSON.stringify({
           url: targetUrl,
-          aiMode: localStorage.getItem('omnibox_ai_mode') || 'none',
-          customAiApiKey: localStorage.getItem('omnibox_custom_ai_api_key') || '',
-          customAiApiUrl: localStorage.getItem('omnibox_custom_ai_api_url') || 'http://localhost:1234/v1',
-          customAiModel: localStorage.getItem('omnibox_custom_ai_model') || '',
-          aiCustomInstructions: localStorage.getItem('omnibox_ai_custom_instructions') || '',
-          aiTemperature: parseFloat(localStorage.getItem('omnibox_ai_temperature') || '0.2'),
-          aiDefaultTags: localStorage.getItem('omnibox_ai_default_tags') || '',
-          aiDefaultThumbnail: localStorage.getItem('omnibox_ai_default_thumbnail') || '',
         }),
       });
       clearTimeout(timer);

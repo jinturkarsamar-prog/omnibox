@@ -17,11 +17,7 @@ import {
   Paintbrush,
   Plus,
   Trash2,
-  Sparkles,
-  Cpu,
-  Key,
-  Eye,
-  EyeOff,
+  Zap,
   Info,
   ShieldAlert,
   Gauge,
@@ -54,22 +50,6 @@ interface SettingsSectionProps {
   setActiveThemeId: (id: string) => void;
   customThemes: ThemeConfig[];
   setCustomThemes: React.Dispatch<React.SetStateAction<ThemeConfig[]>>;
-  aiMode: 'built-in' | 'custom' | 'openai' | 'ollama' | 'lm-studio' | 'none';
-  setAiMode: (m: 'built-in' | 'custom' | 'openai' | 'ollama' | 'lm-studio' | 'none') => void;
-  customAiApiKey: string;
-  setCustomAiApiKey: (k: string) => void;
-  customAiApiUrl: string;
-  setCustomAiApiUrl: (u: string) => void;
-  customAiModel: string;
-  setCustomAiModel: (m: string) => void;
-  aiCustomInstructions: string;
-  setAiCustomInstructions: (i: string) => void;
-  aiTemperature: number;
-  setAiTemperature: (t: number) => void;
-  aiDefaultTags: string;
-  setAiDefaultTags: (tags: string) => void;
-  aiDefaultThumbnail: string;
-  setAiDefaultThumbnail: (thumb: string) => void;
   autoCloseOnShare: boolean;
   setAutoCloseOnShare: (v: boolean) => void;
 }
@@ -99,22 +79,6 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   setActiveThemeId,
   customThemes,
   setCustomThemes,
-  aiMode,
-  setAiMode,
-  customAiApiKey,
-  setCustomAiApiKey,
-  customAiApiUrl,
-  setCustomAiApiUrl,
-  customAiModel,
-  setCustomAiModel,
-  aiCustomInstructions,
-  setAiCustomInstructions,
-  aiTemperature,
-  setAiTemperature,
-  aiDefaultTags,
-  setAiDefaultTags,
-  aiDefaultThumbnail,
-  setAiDefaultThumbnail,
   autoCloseOnShare,
   setAutoCloseOnShare,
 }) => {
@@ -123,28 +87,14 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<'appearance' | 'ai' | 'system'>(() => {
-    return (localStorage.getItem('omnibox_settings_active_tab') as any) || 'appearance';
+  const [activeTab, setActiveTab] = useState<'appearance' | 'rules' | 'system'>(() => {
+    const saved = localStorage.getItem('omnibox_settings_active_tab');
+    return saved === 'rules' || saved === 'system' ? saved : 'appearance';
   });
 
   useEffect(() => {
     localStorage.setItem('omnibox_settings_active_tab', activeTab);
   }, [activeTab]);
-
-  // AI status tracking
-  const [builtInAvailable, setBuiltInAvailable] = useState<boolean | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
-
-  useEffect(() => {
-    fetch('/api/status')
-      .then((res) => res.json())
-      .then((data) => {
-        setBuiltInAvailable(!!data.builtInGeminiAvailable);
-      })
-      .catch(() => {
-        setBuiltInAvailable(false);
-      });
-  }, []);
 
   // Selected mode to filter/view presets
   const currentActiveTheme = [...THEME_PRESETS, ...customThemes].find(t => t.id === activeThemeId) || THEME_PRESETS[0];
@@ -319,12 +269,17 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-theme-border pb-5">
         <div>
-          <h1 className="text-2xl font-display italic text-theme-text tracking-tight flex items-center space-x-2.5">
-            <SlidersHorizontal className="text-theme-muted" size={22} />
-            <span>Settings & Appearance</span>
-          </h1>
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-2xl font-display italic text-theme-text tracking-tight flex items-center space-x-2.5">
+              <SlidersHorizontal className="text-theme-muted" size={22} />
+              <span>Settings & Appearance</span>
+            </h1>
+            <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-xl bg-theme-card border border-theme-border text-theme-muted">
+              v{__APP_VERSION__}
+            </span>
+          </div>
           <p className="text-xs text-theme-muted mt-1">
-            Personalize your layout, select beautiful pre-designed themes, or configure local/cloud AI engines.
+            Personalize your layout, select pre-designed themes, manage auto-organize rules, and configure quick-capture behavior.
           </p>
         </div>
 
@@ -344,15 +299,15 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('ai')}
+            onClick={() => setActiveTab('rules')}
             className={`flex items-center space-x-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
-              activeTab === 'ai'
+              activeTab === 'rules'
                 ? 'bg-theme-card text-theme-text shadow-xs border border-theme-border/40 font-bold'
                 : 'text-theme-muted hover:text-theme-text'
             }`}
           >
-            <Sparkles size={14} className={activeTab === 'ai' ? 'text-theme-accent animate-pulse' : ''} />
-            <span className="hidden sm:inline">AI Engine</span>
+            <Zap size={14} className={activeTab === 'rules' ? 'text-theme-accent' : ''} />
+            <span className="hidden sm:inline">Auto-Rules</span>
           </button>
           <button
             type="button"
@@ -601,7 +556,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                     }}
                   >
                     <div className="aspect-video relative bg-black/10 flex items-center justify-center overflow-hidden">
-                      <Sparkles size={24} style={{ color: customAccentColor, opacity: 0.5 }} />
+                      <Paintbrush size={24} style={{ color: customAccentColor, opacity: 0.5 }} />
                       <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider" style={{ backgroundColor: customAccentColor, color: '#fff' }}>
                         Platform
                       </div>
@@ -713,327 +668,14 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
       )}
 
-      {/* AI ENGINE TAB CONTENT */}
-      {activeTab === 'ai' && (
+      {/* AUTO-RULES TAB CONTENT */}
+      {activeTab === 'rules' && (
         <div className="space-y-6 animate-fade-in max-w-3xl mx-auto">
-          {/* AI Metadata Engine Card */}
-          <div className="border border-theme-border bg-theme-sidebar rounded-xl p-5 space-y-5 shadow-sm">
-            <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider flex items-center space-x-2 border-b border-theme-border pb-3">
-              <Sparkles size={14} className="text-theme-accent" />
-              <span>AI Metadata Engine</span>
-            </h2>
-
-            <div className="space-y-4">
-              <p className="text-[11px] text-theme-muted leading-normal">
-                Configure how OmniBox processes incoming URLs. Using an AI model allows advanced categorization and summarizing, while heuristic mode offers instant results with zero API latency.
-              </p>
-
-              {/* Mode Selection Grid */}
-              <div className="space-y-2">
-                <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">Inference Mode</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  {[
-                    {
-                      id: 'built-in' as const,
-                      title: 'OmniBox Gemini',
-                      badge: builtInAvailable === true ? 'Active' : builtInAvailable === false ? 'No Server Key' : 'Checking...',
-                      badgeClass: builtInAvailable === true ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400',
-                      desc: 'Use the pre-configured backend Gemini 3.5 Flash model. Safe, secure, and hassle-free.',
-                      icon: Sparkles
-                    },
-                    {
-                      id: 'custom' as const,
-                      title: 'My Custom Gemini Key',
-                      badge: 'Direct Key',
-                      badgeClass: 'bg-blue-500/10 text-blue-400',
-                      desc: 'Input your personal Google Gemini API Key. Kept secure inside your browser storage.',
-                      icon: Cpu
-                    },
-                    {
-                      id: 'openai' as const,
-                      title: 'OpenAI API Gateway',
-                      badge: 'GPT-4o / Compatible',
-                      badgeClass: 'bg-purple-500/10 text-purple-400',
-                      desc: 'Connect to OpenAI or any OpenAI-compatible custom gateway.',
-                      icon: Sparkles
-                    },
-                    {
-                      id: 'ollama' as const,
-                      title: 'Ollama Local AI',
-                      badge: '100% Offline',
-                      badgeClass: 'bg-orange-500/10 text-orange-400',
-                      desc: 'Use a local Ollama server (e.g., Llama 3) for 100% private client processing.',
-                      icon: Cpu
-                    },
-                    {
-                      id: 'lm-studio' as const,
-                      title: 'LM Studio Local AI',
-                      badge: '100% Offline',
-                      badgeClass: 'bg-amber-500/10 text-amber-400',
-                      desc: 'Connect to a local LM Studio server running any custom GGUF model.',
-                      icon: Cpu
-                    },
-                    {
-                      id: 'none' as const,
-                      title: 'No AI (Fast Heuristic)',
-                      badge: '0ms Latency',
-                      badgeClass: 'bg-sky-500/10 text-sky-400',
-                      desc: 'Parse URLs instantly using crawlers and regex scrapers. 100% free and lightning fast.',
-                      icon: RotateCcw
-                    }
-                  ].map((mode) => {
-                    const isActive = aiMode === mode.id;
-                    const Icon = mode.icon;
-                    return (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => setAiMode(mode.id)}
-                        className={`flex flex-col p-3 rounded-xl border text-left transition cursor-pointer group ${
-                          isActive
-                            ? 'bg-theme-card border-theme-accent text-theme-text ring-1 ring-theme-accent'
-                            : 'bg-black/10 border-theme-border text-theme-muted hover:border-zinc-700 hover:text-theme-text'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between w-full mb-1">
-                          <Icon size={12} className={isActive ? 'text-theme-accent' : 'text-theme-muted'} />
-                          <span className={`text-[8px] font-mono px-1 rounded-xl ${mode.badgeClass}`}>{mode.badge}</span>
-                        </div>
-                        <span className="text-[11px] font-bold mt-1 block">{mode.title}</span>
-                        <span className="text-[9px] text-theme-muted leading-normal mt-1 block flex-1">{mode.desc}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Custom Credential Fields */}
-              {aiMode === 'custom' && (
-                <div className="space-y-1.5 bg-black/10 border border-theme-border rounded-xl p-3.5">
-                  <div className="flex justify-between items-center">
-                    <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider flex items-center space-x-1">
-                      <Key size={10} />
-                      <span>Gemini API Key</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="text-[10px] text-theme-accent hover:underline cursor-pointer flex items-center space-x-1"
-                    >
-                      {showApiKey ? <EyeOff size={10} /> : <Eye size={10} />}
-                      <span>{showApiKey ? 'Hide' : 'Show'}</span>
-                    </button>
-                  </div>
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={customAiApiKey}
-                    onChange={(e) => setCustomAiApiKey(e.target.value)}
-                    placeholder="Enter AI Studio Gemini API Key..."
-                    className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                  />
-                  <div className="flex items-center space-x-1 text-[9px] text-theme-muted mt-1">
-                    <span>Retrieve your API key from the</span>
-                    <a
-                      href="https://aistudio.google.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-theme-accent hover:underline"
-                    >
-                      Google AI Studio Console
-                    </a>
-                  </div>
-                </div>
-              )}
-
-              {aiMode === 'openai' && (
-                <div className="space-y-3 bg-black/10 border border-theme-border rounded-xl p-3.5">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider flex items-center space-x-1">
-                        <Key size={10} />
-                        <span>OpenAI API Key</span>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        className="text-[10px] text-theme-accent hover:underline cursor-pointer flex items-center space-x-1"
-                      >
-                        {showApiKey ? <EyeOff size={10} /> : <Eye size={10} />}
-                        <span>{showApiKey ? 'Hide' : 'Show'}</span>
-                      </button>
-                    </div>
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={customAiApiKey}
-                      onChange={(e) => setCustomAiApiKey(e.target.value)}
-                      placeholder="Enter OpenAI API Key (sk-...)"
-                      className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    <div className="space-y-1">
-                      <label className="block text-[9px] font-bold text-theme-muted uppercase tracking-wider">Model Name</label>
-                      <input
-                        type="text"
-                        value={customAiModel}
-                        onChange={(e) => setCustomAiModel(e.target.value)}
-                        placeholder="gpt-4o-mini"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-2.5 py-1.5 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[9px] font-bold text-theme-muted uppercase tracking-wider">API Endpoint URL</label>
-                      <input
-                        type="text"
-                        value={customAiApiUrl}
-                        onChange={(e) => setCustomAiApiUrl(e.target.value)}
-                        placeholder="https://api.openai.com/v1"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-2.5 py-1.5 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {aiMode === 'ollama' && (
-                <div className="space-y-3 bg-black/10 border border-theme-border rounded-xl p-3.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">Ollama Server API URL</label>
-                      <input
-                        type="text"
-                        value={customAiApiUrl}
-                        onChange={(e) => setCustomAiApiUrl(e.target.value)}
-                        placeholder="http://localhost:11434/v1"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">Ollama Model Name</label>
-                      <input
-                        type="text"
-                        value={customAiModel}
-                        onChange={(e) => setCustomAiModel(e.target.value)}
-                        placeholder="llama3"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {aiMode === 'lm-studio' && (
-                <div className="space-y-3 bg-black/10 border border-theme-border rounded-xl p-3.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">LM Studio API URL</label>
-                      <input
-                        type="text"
-                        value={customAiApiUrl}
-                        onChange={(e) => setCustomAiApiUrl(e.target.value)}
-                        placeholder="http://localhost:1234/v1"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">Model Name (Optional)</label>
-                      <input
-                        type="text"
-                        value={customAiModel}
-                        onChange={(e) => setCustomAiModel(e.target.value)}
-                        placeholder="unspecified"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Advanced System Directives & Tuning */}
-              {aiMode !== 'none' && (
-                <div className="mt-5 pt-5 border-t border-theme-border/60 space-y-4">
-                  <div className="text-[11px] font-bold text-theme-text uppercase tracking-wider flex items-center space-x-1.5">
-                    <SlidersHorizontal size={12} className="text-theme-accent" />
-                    <span>Engine Tuning & Custom Directives</span>
-                  </div>
-
-                  {/* Custom System Directives */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider flex items-center justify-between">
-                      <span>Custom System Directives</span>
-                      <span className="text-[8px] font-normal text-theme-accent normal-case">Steers AI parsing behavior</span>
-                    </label>
-                    <textarea
-                      value={aiCustomInstructions}
-                      onChange={(e) => setAiCustomInstructions(e.target.value)}
-                      placeholder="e.g., 'Always translate note summaries to French', 'Prefix all titles with [READ]'..."
-                      rows={2}
-                      className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent resize-none font-sans leading-normal"
-                    />
-                  </div>
-
-                  {/* Temperature & Default Tags */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Temperature Slider */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[10px] font-bold text-theme-muted uppercase tracking-wider">
-                        <span>Model Temperature</span>
-                        <span className="font-mono text-theme-accent text-[11px]">{aiTemperature.toFixed(1)}</span>
-                      </div>
-                      <div className="flex items-center space-x-3 bg-black/15 px-3 py-2 border border-theme-border/50 rounded-xl">
-                        <span className="text-[9px] text-theme-muted">Focused</span>
-                        <input
-                          type="range"
-                          min="0.0"
-                          max="1.0"
-                          step="0.1"
-                          value={aiTemperature}
-                          onChange={(e) => setAiTemperature(parseFloat(e.target.value))}
-                          className="flex-1 h-1 bg-theme-border rounded-xl appearance-none cursor-pointer accent-theme-accent"
-                        />
-                        <span className="text-[9px] text-theme-muted">Creative</span>
-                      </div>
-                    </div>
-
-                    {/* Default Tags */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">
-                        <span>Always-On Default Tags</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={aiDefaultTags}
-                        onChange={(e) => setAiDefaultTags(e.target.value)}
-                        placeholder="e.g., 'inbox, unchecked, auto-scraped'"
-                        className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Fallback Thumbnail */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[10px] font-bold text-theme-muted uppercase tracking-wider">Custom Fallback Thumbnail URL</label>
-                    <input
-                      type="text"
-                      value={aiDefaultThumbnail}
-                      onChange={(e) => setAiDefaultThumbnail(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe"
-                      className="w-full bg-theme-sidebar border border-theme-border rounded-xl px-3 py-2 text-xs font-mono text-theme-text focus:outline-none focus:border-theme-accent"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-
-
-                              {/* AUTO-ORGANIZE RULES */}
+          {/* AUTO-ORGANIZE RULES */}
           <div className="border border-theme-border bg-theme-sidebar rounded-xl p-5 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-theme-border pb-3">
               <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider flex items-center space-x-2">
-                <Sparkles size={14} className="text-theme-accent" />
+                <Zap size={14} className="text-theme-accent" />
                 <span>Auto-Organize Rules</span>
               </h2>
             </div>
@@ -1176,7 +818,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
           <div className="border border-theme-border bg-theme-sidebar rounded-xl p-5 space-y-4 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-theme-border pb-3">
               <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider flex items-center space-x-2">
-                <Sparkles size={14} className="text-theme-accent" />
+                <Zap size={14} className="text-theme-accent" />
                 <span>Zero-Interruption Quick Capture</span>
               </h2>
               <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">
@@ -1389,6 +1031,12 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
         </div>
       )}
+
+      {/* Version Footer */}
+      <div className="pt-4 border-t border-theme-border/60 flex items-center justify-between text-[11px] text-theme-muted">
+        <span>OmniBox Content Aggregator</span>
+        <span className="font-mono">Version v{__APP_VERSION__}</span>
+      </div>
     </div>
   );
 };

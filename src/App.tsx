@@ -171,38 +171,12 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // AI settings (Built-in, Custom, OpenAI, Ollama, LM Studio, or None)
-  const [aiMode, setAiMode] = useState<'built-in' | 'custom' | 'openai' | 'ollama' | 'lm-studio' | 'none'>(() => {
-    return (localStorage.getItem('omnibox_ai_mode') as any) || 'none';
-  });
   const [autoCloseOnShare, setAutoCloseOnShare] = useState<boolean>(() => {
     return localStorage.getItem('omnibox_auto_close_share') !== 'false';
   });
   useEffect(() => {
     localStorage.setItem('omnibox_auto_close_share', String(autoCloseOnShare));
   }, [autoCloseOnShare]);
-  const [customAiApiKey, setCustomAiApiKey] = useState<string>(() => {
-    return localStorage.getItem('omnibox_custom_ai_api_key') || '';
-  });
-  const [customAiApiUrl, setCustomAiApiUrl] = useState<string>(() => {
-    return localStorage.getItem('omnibox_custom_ai_api_url') || 'http://localhost:1234/v1';
-  });
-  const [customAiModel, setCustomAiModel] = useState<string>(() => {
-    return localStorage.getItem('omnibox_custom_ai_model') || '';
-  });
-  const [aiCustomInstructions, setAiCustomInstructions] = useState<string>(() => {
-    return localStorage.getItem('omnibox_ai_custom_instructions') || '';
-  });
-  const [aiTemperature, setAiTemperature] = useState<number>(() => {
-    const saved = localStorage.getItem('omnibox_ai_temperature');
-    return saved !== null ? parseFloat(saved) : 0.2;
-  });
-  const [aiDefaultTags, setAiDefaultTags] = useState<string>(() => {
-    return localStorage.getItem('omnibox_ai_default_tags') || '';
-  });
-  const [aiDefaultThumbnail, setAiDefaultThumbnail] = useState<string>(() => {
-    return localStorage.getItem('omnibox_ai_default_thumbnail') || '';
-  });
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
@@ -387,38 +361,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('omnibox_custom_themes', JSON.stringify(customThemes));
   }, [customThemes]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_ai_mode', aiMode);
-  }, [aiMode]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_custom_ai_api_key', customAiApiKey);
-  }, [customAiApiKey]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_custom_ai_api_url', customAiApiUrl);
-  }, [customAiApiUrl]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_custom_ai_model', customAiModel);
-  }, [customAiModel]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_ai_custom_instructions', aiCustomInstructions);
-  }, [aiCustomInstructions]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_ai_temperature', aiTemperature.toString());
-  }, [aiTemperature]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_ai_default_tags', aiDefaultTags);
-  }, [aiDefaultTags]);
-
-  useEffect(() => {
-    localStorage.setItem('omnibox_ai_default_thumbnail', aiDefaultThumbnail);
-  }, [aiDefaultThumbnail]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -833,14 +775,6 @@ export default function App() {
           signal: controller.signal,
           body: JSON.stringify({
             url: targetUrl,
-            aiMode,
-            customAiApiKey,
-            customAiApiUrl,
-            customAiModel,
-            aiCustomInstructions,
-            aiTemperature,
-            aiDefaultTags,
-            aiDefaultThumbnail,
           }),
         });
         clearTimeout(timer);
@@ -1275,22 +1209,6 @@ export default function App() {
               setActiveThemeId={setActiveThemeId}
               customThemes={customThemes}
               setCustomThemes={setCustomThemes}
-              aiMode={aiMode}
-              setAiMode={setAiMode}
-              customAiApiKey={customAiApiKey}
-              setCustomAiApiKey={setCustomAiApiKey}
-              customAiApiUrl={customAiApiUrl}
-              setCustomAiApiUrl={setCustomAiApiUrl}
-              customAiModel={customAiModel}
-              setCustomAiModel={setCustomAiModel}
-              aiCustomInstructions={aiCustomInstructions}
-              setAiCustomInstructions={setAiCustomInstructions}
-              aiTemperature={aiTemperature}
-              setAiTemperature={setAiTemperature}
-              aiDefaultTags={aiDefaultTags}
-              setAiDefaultTags={setAiDefaultTags}
-              aiDefaultThumbnail={aiDefaultThumbnail}
-              setAiDefaultThumbnail={setAiDefaultThumbnail}
               autoCloseOnShare={autoCloseOnShare}
               setAutoCloseOnShare={setAutoCloseOnShare}
             />

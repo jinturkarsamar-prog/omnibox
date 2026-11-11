@@ -258,7 +258,7 @@ export const MoodboardStudio: React.FC<MoodboardStudioProps> = ({ item }) => {
         <div className="space-y-2 border-t border-white/5 pt-3">
           <span className="text-[10px] font-extrabold uppercase tracking-widest text-zinc-300 flex items-center space-x-1">
             <Palette size={11} className="text-theme-accent animate-spin-slow" />
-            <span>AI Color Extractor</span>
+            <span>Color Palette</span>
           </span>
           <div className="flex space-x-1.5 justify-between">
             {derivedPalette.map((color, idx) => (
