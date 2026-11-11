@@ -1293,7 +1293,7 @@ export default function App() {
               className="flex items-center space-x-2 cursor-pointer hover:opacity-85 active:scale-95 transition-all text-left focus:outline-none py-1 pr-2 rounded-xl"
               title="OmniBox"
             >
-              <Logo size={32} />
+              <Logo size={36} />
               <span className="font-display italic text-theme-text text-lg tracking-tight">
                 OmniBox
               </span>

@@ -325,7 +325,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Sidebar Header (Serif Display Header matching design spec) */}
       <div className="p-6 pb-4 border-b border-theme-border flex items-center justify-between shrink-0 bg-theme-sidebar transition-all duration-200">
         <div className="flex items-center space-x-3">
-          <Logo size={42} />
+          <Logo size={44} />
           <div>
             <h1 className="text-2xl font-display italic text-theme-text tracking-tight leading-none">OmniBox</h1>
             <p className="text-[10px] uppercase tracking-widest text-theme-muted mt-1 font-sans">Your Personal Library</p>
