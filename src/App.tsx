@@ -16,6 +16,12 @@ import {
   Globe,
   Tag as TagIcon,
   HelpCircle,
+  CheckSquare,
+  X,
+  FolderOpen,
+  ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag, AutoRule, PlatformType, FormatType, ThemeConfig } from './types';
 import { THEME_PRESETS } from './theme';
@@ -36,6 +42,7 @@ import { ToastNotification, ToastMessage } from './components/ToastNotification'
 import { QuickShareOverlay } from './components/QuickShareOverlay';
 import { quickParseUrl, extractFirstUrl } from './utils/quickParse';
 import { useBackHandler, BackStackLayer } from './utils/backNavigation';
+import { itemToObsidianMarkdown } from './utils/obsidianExport';
 
 const PENDING_ENRICH_KEY = 'omnibox_pending_enrichments';
 
@@ -330,6 +337,12 @@ export default function App() {
   const [prefillData, setPrefillData] = useState<{ url?: string; header?: string; note?: string } | null>(null);
   const [swipeActiveItem, setSwipeActiveItem] = useState<SavedItem | null>(null);
   const [showFolderSwipeSheet, setShowFolderSwipeSheet] = useState(false);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [quickActionItem, setQuickActionItem] = useState<SavedItem | null>(null);
+  const [copiedQuickActionMd, setCopiedQuickActionMd] = useState(false);
+  const [showBulkMoveSheet, setShowBulkMoveSheet] = useState(false);
+  const [showBulkTagSheet, setShowBulkTagSheet] = useState(false);
 
   // Desktop Optimization States
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
@@ -551,6 +564,10 @@ export default function App() {
   };
 
   // Android / browser universal back handlers for top-level overlays
+  useBackHandler(isSelectionMode, () => {
+    setIsSelectionMode(false);
+    setSelectedItemIds([]);
+  });
   useBackHandler(isCommandPaletteOpen, () => setIsCommandPaletteOpen(false));
   useBackHandler(Boolean(contextMenu), () => setContextMenu(null));
   useBackHandler(Boolean(selectedItem) && isWideScreen && !showFullDetailSheet, () =>
@@ -694,6 +711,7 @@ export default function App() {
   // Clear batch multi-selects when active navigation changes to keep context-safe
   useEffect(() => {
     setSelectedItemIds([]);
+    setIsSelectionMode(false);
   }, [activeSection]);
 
   // Track viewport changes for permanent side-panel inspector
@@ -1151,7 +1169,7 @@ export default function App() {
   };
 
   const itemsCount = {
-    all: items.filter((i) => i.deletedAt === null && i.folderId !== null).length,
+    all: items.filter((i) => i.deletedAt === null).length,
     inbox: items.filter((i) => i.deletedAt === null && i.folderId === null).length,
     trash: items.filter((i) => i.deletedAt !== null).length,
   };
@@ -1181,7 +1199,7 @@ export default function App() {
     if (activeSection === 'inbox') {
       pool = items.filter((item) => item.deletedAt === null && item.folderId === null);
     } else if (activeSection === 'all') {
-      pool = items.filter((item) => item.deletedAt === null && item.folderId !== null);
+      pool = items.filter((item) => item.deletedAt === null);
     } else if (activeSection === 'trash') {
       pool = items.filter((item) => item.deletedAt !== null);
     } else if (activeSection.startsWith('folder-')) {
@@ -1314,12 +1332,12 @@ export default function App() {
             />
           </div>
 
-          {/* Right Action Menu */}
-          <div className="flex items-center space-x-3">
+          {/* Right Action Menu (Desktop Add only; phone uses centered BottomNavigation + button) */}
+          <div className="flex items-center space-x-2">
             <button
               type="button"
               onClick={() => setShowAddDialog(true)}
-              className="flex items-center space-x-1 sm:space-x-1.5 bg-theme-accent hover:bg-theme-hover text-white font-semibold px-3 min-h-[38px] sm:px-4 sm:py-2 rounded-xl text-xs transition shrink-0 shadow-lg active:scale-95"
+              className="hidden lg:flex items-center space-x-1.5 bg-theme-accent hover:bg-theme-hover text-white font-semibold px-4 py-2 rounded-xl text-xs transition shrink-0 shadow-lg active:scale-95 cursor-pointer"
             >
               <Plus size={14} />
               <span>Add</span>
@@ -1412,22 +1430,43 @@ export default function App() {
             // =========================================================
             // ALL MEDIA TILES & GRID TIERS
             // =========================================================
-            <div className="space-y-6 max-w-7xl mx-auto">
+            <div className="space-y-4 md:space-y-6 max-w-7xl mx-auto">
               {/* Header Context row */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-theme-border pb-4">
-                <div>
-                  <h1 className="text-xl font-bold text-theme-text tracking-tight">
+              <div className="flex items-center justify-between gap-3 border-b border-theme-border pb-3 md:pb-4">
+                <div className="min-w-0">
+                  <h1 className="text-lg md:text-xl font-bold text-theme-text tracking-tight truncate">
                     {activeSection === 'all'
                       ? 'Saved Media Library'
                       : folders.find((f) => f.id === activeFolderId)?.name || 'Media Library'}
                   </h1>
                   <p className="text-xs text-theme-muted mt-0.5">
-                    Viewing {filteredItems.length} curated media cards in this section.
+                    {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
                   </p>
                 </div>
 
-                {/* Grid vs List toggles & visual layout densities */}
-                <div className="flex items-center space-x-3 self-end md:self-auto">
+                {/* Multi-Select Mode + Grid vs List toggles */}
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isSelectionMode) {
+                        setIsSelectionMode(false);
+                        setSelectedItemIds([]);
+                      } else {
+                        setIsSelectionMode(true);
+                      }
+                    }}
+                    className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+                      isSelectionMode
+                        ? 'bg-theme-accent border-theme-accent text-white shadow-sm'
+                        : 'bg-theme-card border-theme-border text-theme-muted hover:text-theme-text'
+                    }`}
+                    title={isSelectionMode ? 'Done selecting' : 'Select multiple items'}
+                  >
+                    <CheckSquare size={14} />
+                    <span>{isSelectionMode ? 'Done' : 'Select'}</span>
+                  </button>
+
                   {/* Grid vs List layout buttons */}
                   <div className="flex items-center bg-theme-card border border-theme-border rounded-xl p-0.5 text-theme-muted">
                     <button
@@ -1452,72 +1491,131 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Mobile Search block */}
-              <div className="flex md:hidden items-center relative">
-                <div className="absolute inset-y-0 left-3 flex items-center text-theme-muted pointer-events-none">
-                  <Search size={16} />
+              {/* Mobile Search + Collapsible Filters Bar */}
+              <div className="md:hidden space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <div className="absolute inset-y-0 left-3 flex items-center text-theme-muted pointer-events-none">
+                      <Search size={15} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search saved items..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-theme-card border border-theme-border rounded-xl pl-9 pr-8 py-2 text-base sm:text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent transition shadow-inner"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                        className="absolute inset-y-0 right-2 flex items-center text-theme-muted hover:text-theme-text px-1 cursor-pointer"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMobileFilters((prev) => !prev)}
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl border text-xs font-semibold shrink-0 transition cursor-pointer ${
+                      showMobileFilters || platformFilter !== 'All' || formatFilter !== 'All'
+                        ? 'bg-theme-accent/10 border-theme-accent text-theme-accent'
+                        : 'bg-theme-card border-theme-border text-theme-text'
+                    }`}
+                  >
+                    <SlidersHorizontal size={14} />
+                    <span>Filters</span>
+                    {(platformFilter !== 'All' || formatFilter !== 'All') && (
+                      <span className="w-4 h-4 rounded-full bg-theme-accent text-white text-[10px] font-bold flex items-center justify-center">
+                        {(platformFilter !== 'All' ? 1 : 0) + (formatFilter !== 'All' ? 1 : 0)}
+                      </span>
+                    )}
+                  </button>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Search titles, notes, #tags..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-theme-card border border-theme-border rounded-xl pl-10 pr-4 py-2.5 text-base sm:text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent transition shadow-inner"
-                />
+
+                {!showMobileFilters && (platformFilter !== 'All' || formatFilter !== 'All') && (
+                  <div className="flex items-center flex-wrap gap-1.5">
+                    {platformFilter !== 'All' && (
+                      <button
+                        type="button"
+                        onClick={() => setPlatformFilter('All')}
+                        className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-theme-accent text-[11px] font-semibold cursor-pointer"
+                      >
+                        <span>{platformFilter}</span>
+                        <X size={11} />
+                      </button>
+                    )}
+                    {formatFilter !== 'All' && (
+                      <button
+                        type="button"
+                        onClick={() => setFormatFilter('All')}
+                        className="flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-theme-accent text-[11px] font-semibold cursor-pointer"
+                      >
+                        <span>{formatFilter}</span>
+                        <X size={11} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Quick Platform Chips Filter Row */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-theme-muted uppercase tracking-widest block">
-                  Quick Filter Platforms
-                </span>
-                <div className="flex overflow-x-auto gap-1.5 pb-2 -mx-4 px-4 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
-                  {PLATFORM_CHIPS.map((p) => {
-                    const isActive = platformFilter === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setPlatformFilter(p)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-xs shrink-0 sm:shrink ${
-                          isActive
-                            ? 'bg-theme-card border-theme-accent text-theme-text font-bold ring-2 ring-theme-accent/15'
-                            : 'bg-theme-card border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-muted'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
+              {/* Platform & Format Filters (Visible on Desktop, Collapsible on Phone) */}
+              <div className={showMobileFilters ? 'space-y-3 p-3 bg-theme-sidebar border border-theme-border rounded-xl md:p-0 md:bg-transparent md:border-0 md:rounded-none' : 'hidden md:block space-y-3'}>
+                {/* Quick Platform Chips Filter Row */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-theme-muted uppercase tracking-widest block">
+                    Quick Filter Platforms
+                  </span>
+                  <div className="flex overflow-x-auto gap-1.5 pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0">
+                    {PLATFORM_CHIPS.map((p) => {
+                      const isActive = platformFilter === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPlatformFilter(p)}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-xs shrink-0 sm:shrink cursor-pointer ${
+                            isActive
+                              ? 'bg-theme-card border-theme-accent text-theme-text font-bold ring-2 ring-theme-accent/15'
+                              : 'bg-theme-card border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-muted'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              {/* Quick Format Chips Filter Row */}
-              <div className="space-y-2 pt-1 border-t border-theme-border/60">
-                <span className="text-[10px] font-bold text-theme-muted uppercase tracking-widest block">
-                  Quick Filter Formats
-                </span>
-                <div className="flex overflow-x-auto gap-1.5 pb-2 -mx-4 px-4 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
-                  {FORMAT_CHIPS.map((f) => {
-                    const isActive = formatFilter === f;
-                    return (
-                      <button
-                        key={f}
-                        onClick={() => setFormatFilter(f)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-xs shrink-0 sm:shrink ${
-                          isActive
-                            ? 'bg-theme-card border-theme-accent text-theme-text font-bold ring-2 ring-theme-accent/15'
-                            : 'bg-theme-card border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-muted'
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    );
-                  })}
+                {/* Quick Format Chips Filter Row */}
+                <div className="space-y-2 pt-2 border-t border-theme-border/60">
+                  <span className="text-[10px] font-bold text-theme-muted uppercase tracking-widest block">
+                    Quick Filter Formats
+                  </span>
+                  <div className="flex overflow-x-auto gap-1.5 pb-1 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0">
+                    {FORMAT_CHIPS.map((f) => {
+                      const isActive = formatFilter === f;
+                      return (
+                        <button
+                          key={f}
+                          onClick={() => setFormatFilter(f)}
+                          className={`text-xs font-medium px-3 py-1.5 rounded-xl border transition-all duration-150 shadow-xs shrink-0 sm:shrink cursor-pointer ${
+                            isActive
+                              ? 'bg-theme-card border-theme-accent text-theme-text font-bold ring-2 ring-theme-accent/15'
+                              : 'bg-theme-card border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-muted'
+                          }`}
+                        >
+                          {f}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
               {/* Core media grid feed */}
-              <div className="pt-2">
+              <div className={selectedItemIds.length > 0 ? 'pb-20 md:pb-16' : ''}>
                 <Feed
                   onTagClick={handleTagClick}
                   items={filteredItems}
@@ -1526,15 +1624,20 @@ export default function App() {
                   layout={layout}
                   gallerySize={gallerySize}
                   listDensity={listDensity}
-                      showNotesInFeed={showNotesInFeed}
+                  showNotesInFeed={showNotesInFeed}
                   showTagsInFeed={showTagsInFeed}
                   showPlatformBadges={showPlatformBadges}
                   showYouTubeViewer={showYouTubeViewer}
+                  isSelectionMode={isSelectionMode}
                   selectedItemIds={selectedItemIds}
                   onSelectItem={(item) => setSelectedItem(item)}
                   onDeleteItem={handleDeleteItem}
                   onToggleSelectItem={handleToggleSelectItem}
                   onContextMenu={handleContextMenu}
+                  onQuickActions={(item) => {
+                    setCopiedQuickActionMd(false);
+                    setQuickActionItem(item);
+                  }}
                   onReorderItems={handleReorderItems}
                   onSwipeRightItem={(item) => {
                     setSwipeActiveItem(item);
@@ -1615,6 +1718,270 @@ export default function App() {
         onDeleteTag={handleDeleteTag}
         onTagClick={handleTagClick}
       />
+
+      {/* Floating Multi-Select Bulk Action Bar */}
+      {selectedItemIds.length > 0 && activeSection !== 'inbox' && activeSection !== 'trash' && (
+        <div className="fixed bottom-[76px] inset-x-3 z-40 lg:bottom-6 lg:left-1/2 lg:-translate-x-1/2 lg:w-auto lg:min-w-[420px] bg-theme-sidebar/95 backdrop-blur-md border border-theme-accent/40 rounded-2xl p-2.5 shadow-2xl flex items-center justify-between gap-2">
+          <div className="flex items-center space-x-2 pl-1.5">
+            <span className="text-xs font-bold text-theme-text">
+              {selectedItemIds.length} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedItemIds.length === filteredItems.length) {
+                  setSelectedItemIds([]);
+                } else {
+                  setSelectedItemIds(filteredItems.map((i) => i.id));
+                }
+              }}
+              className="text-[11px] font-semibold text-theme-accent hover:underline cursor-pointer"
+            >
+              {selectedItemIds.length === filteredItems.length ? 'None' : 'All'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowBulkMoveSheet(true)}
+              className="flex items-center space-x-1 px-2.5 py-2 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text hover:bg-theme-hover cursor-pointer"
+            >
+              <FolderOpen size={13} className="text-theme-accent" />
+              <span>Move</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkTagSheet(true)}
+              className="flex items-center space-x-1 px-2.5 py-2 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text hover:bg-theme-hover cursor-pointer"
+            >
+              <TagIcon size={13} className="text-theme-accent" />
+              <span>Tag</span>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await handleMassDelete(selectedItemIds);
+                setSelectedItemIds([]);
+                setIsSelectionMode(false);
+              }}
+              className="flex items-center space-x-1 px-2.5 py-2 rounded-xl bg-rose-500/15 border border-rose-500/30 text-xs font-semibold text-rose-400 hover:bg-rose-500/25 cursor-pointer"
+            >
+              <Trash2 size={13} />
+              <span>Trash</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedItemIds([]);
+                setIsSelectionMode(false);
+              }}
+              aria-label="Cancel selection"
+              className="p-2 rounded-xl text-theme-muted hover:text-theme-text cursor-pointer"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Touch Quick Actions Bottom Sheet */}
+      <BottomSheet
+        isOpen={Boolean(quickActionItem)}
+        onClose={() => setQuickActionItem(null)}
+        title={quickActionItem?.header || 'Item Actions'}
+      >
+        {quickActionItem && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={quickActionItem.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text"
+              >
+                <ExternalLink size={14} className="text-theme-accent" />
+                <span>Open on {quickActionItem.platform}</span>
+              </a>
+              <button
+                type="button"
+                onClick={async () => {
+                  const md = itemToObsidianMarkdown(quickActionItem, folders);
+                  try {
+                    await navigator.clipboard.writeText(md);
+                    setCopiedQuickActionMd(true);
+                    setTimeout(() => setCopiedQuickActionMd(false), 1800);
+                  } catch {
+                    // Ignore clipboard failures
+                  }
+                }}
+                className="flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text cursor-pointer"
+              >
+                {copiedQuickActionMd ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} className="text-theme-accent" />}
+                <span>{copiedQuickActionMd ? 'Copied!' : 'Copy .md'}</span>
+              </button>
+            </div>
+
+            {/* Quick Folder Assignment */}
+            <div className="space-y-2 border-t border-theme-border/60 pt-3">
+              <span className="text-[10px] font-bold text-theme-muted uppercase tracking-wider block">
+                Move to Folder
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleMassMove([quickActionItem.id], null);
+                    setQuickActionItem(null);
+                  }}
+                  className={`px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer ${
+                    quickActionItem.folderId === null
+                      ? 'bg-theme-accent/15 border-theme-accent text-theme-accent'
+                      : 'bg-theme-card border-theme-border text-theme-text'
+                  }`}
+                >
+                  Inbox
+                </button>
+                {folders.map((folder) => (
+                  <button
+                    key={folder.id}
+                    type="button"
+                    onClick={async () => {
+                      await handleMassMove([quickActionItem.id], folder.id);
+                      setQuickActionItem(null);
+                    }}
+                    className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl border text-xs font-semibold cursor-pointer ${
+                      quickActionItem.folderId === folder.id
+                        ? 'bg-theme-accent/15 border-theme-accent text-theme-accent'
+                        : 'bg-theme-card border-theme-border text-theme-text'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color }} />
+                    <span>{folder.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Tag Toggle */}
+            {tags.length > 0 && (
+              <div className="space-y-2 border-t border-theme-border/60 pt-3">
+                <span className="text-[10px] font-bold text-theme-muted uppercase tracking-wider block">
+                  Toggle Tags
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag) => {
+                    const hasTag = quickActionItem.tags.includes(tag.name);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={async () => {
+                          const nextTags = hasTag
+                            ? quickActionItem.tags.filter((t) => t !== tag.name)
+                            : [...quickActionItem.tags, tag.name];
+                          const updated = { ...quickActionItem, tags: nextTags };
+                          await handleUpdateItem(updated);
+                          setQuickActionItem(updated);
+                        }}
+                        className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold cursor-pointer ${
+                          hasTag
+                            ? 'bg-theme-accent/15 border-theme-accent text-theme-text'
+                            : 'bg-theme-card border-theme-border text-theme-muted'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color }} />
+                        <span>#{tag.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={async () => {
+                await handleDeleteItem(quickActionItem.id);
+                setQuickActionItem(null);
+              }}
+              className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-semibold cursor-pointer"
+            >
+              <Trash2 size={14} />
+              <span>Move to Trash</span>
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* Bulk Move Bottom Sheet */}
+      <BottomSheet
+        isOpen={showBulkMoveSheet}
+        onClose={() => setShowBulkMoveSheet(false)}
+        title={`Move ${selectedItemIds.length} Item${selectedItemIds.length === 1 ? '' : 's'}`}
+      >
+        <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+          <button
+            type="button"
+            onClick={async () => {
+              await handleMassMove(selectedItemIds, null);
+              setShowBulkMoveSheet(false);
+              setSelectedItemIds([]);
+              setIsSelectionMode(false);
+            }}
+            className="w-full flex items-center space-x-3 p-3.5 bg-theme-card border border-theme-border rounded-xl text-left font-semibold text-sm text-theme-text cursor-pointer"
+          >
+            <Inbox size={15} className="text-theme-muted" />
+            <span>Inbox (No Folder)</span>
+          </button>
+          {folders.map((folder) => (
+            <button
+              key={folder.id}
+              type="button"
+              onClick={async () => {
+                await handleMassMove(selectedItemIds, folder.id);
+                setShowBulkMoveSheet(false);
+                setSelectedItemIds([]);
+                setIsSelectionMode(false);
+              }}
+              className="w-full flex items-center space-x-3.5 p-3.5 bg-theme-card border border-theme-border rounded-xl text-left font-semibold text-sm text-theme-text cursor-pointer"
+            >
+              <div className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: folder.color }} />
+              <span className="truncate">{folder.name}</span>
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
+
+      {/* Bulk Tag Bottom Sheet */}
+      <BottomSheet
+        isOpen={showBulkTagSheet}
+        onClose={() => setShowBulkTagSheet(false)}
+        title={`Tag ${selectedItemIds.length} Item${selectedItemIds.length === 1 ? '' : 's'}`}
+      >
+        {tags.length === 0 ? (
+          <p className="text-xs text-theme-muted text-center py-6">No tags yet. Create tags from More → Tags.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {tags.map((tag) => (
+              <button
+                key={tag.id}
+                type="button"
+                onClick={async () => {
+                  await handleMassTag(selectedItemIds, [tag.name]);
+                  setShowBulkTagSheet(false);
+                  setSelectedItemIds([]);
+                  setIsSelectionMode(false);
+                }}
+                className="flex items-center space-x-2 px-3.5 py-2.5 bg-theme-card border border-theme-border rounded-xl text-xs font-semibold text-theme-text cursor-pointer"
+              >
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color }} />
+                <span>#{tag.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </BottomSheet>
 
       {/* Folder Move/Archive swipe-right bottom sheet */}
       <BottomSheet

@@ -12,6 +12,8 @@ import {
   MessageSquare,
   Share2,
   GripVertical,
+  MoreVertical,
+  Check,
 } from 'lucide-react';
 import { SavedItem, Tag, Folder } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
@@ -29,11 +31,13 @@ interface FeedProps {
   showTagsInFeed?: boolean;
   showPlatformBadges?: boolean;
   showYouTubeViewer?: boolean;
+  isSelectionMode?: boolean;
   selectedItemIds: string[];
   onSelectItem: (item: SavedItem) => void;
   onDeleteItem: (id: string) => void;
   onToggleSelectItem: (id: string, isMeta: boolean) => void;
   onContextMenu: (e: React.MouseEvent, item: SavedItem) => void;
+  onQuickActions?: (item: SavedItem) => void;
   onRestoreItem?: (id: string) => void;
   onPermanentDeleteItem?: (id: string) => void;
   onTagClick?: (tagName: string, type: 'user' | 'platform' | 'format') => void;
@@ -107,11 +111,13 @@ export const Feed: React.FC<FeedProps> = ({
   showTagsInFeed = true,
   showPlatformBadges = true,
   showYouTubeViewer = true,
+  isSelectionMode = false,
   selectedItemIds,
   onSelectItem,
   onDeleteItem,
   onToggleSelectItem,
   onContextMenu,
+  onQuickActions,
   onRestoreItem,
   onPermanentDeleteItem,
   onTagClick,
@@ -231,7 +237,9 @@ export const Feed: React.FC<FeedProps> = ({
 
           // Card Wrapper Click/Multi-Select Handler
           const handleCardClick = (e: React.MouseEvent) => {
-            if (e.metaKey || e.ctrlKey || e.shiftKey) {
+            if (isSelectionMode) {
+              onToggleSelectItem(item.id, true);
+            } else if (e.metaKey || e.ctrlKey || e.shiftKey) {
               e.stopPropagation();
               e.preventDefault();
               onToggleSelectItem(item.id, true);
@@ -266,20 +274,22 @@ export const Feed: React.FC<FeedProps> = ({
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
-                    onToggleSelectItem(item.id, false);
+                    onToggleSelectItem(item.id, isSelectionMode || selectedItemIds.length > 0 || e.metaKey || e.ctrlKey);
                   }}
-                  className={`w-5 h-5 rounded-xl border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                  className={`w-5 h-5 rounded-lg border items-center justify-center transition-all cursor-pointer shrink-0 ${
                     isListSelected
-                      ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-sm'
-                      : 'bg-transparent border-theme-border text-transparent opacity-0 group-hover:opacity-100'
-                  } ${selectedItemIds.length > 0 ? 'opacity-100' : ''}`}
+                      ? 'flex bg-theme-accent border-theme-accent text-white scale-105 shadow-sm'
+                      : isSelectionMode || selectedItemIds.length > 0
+                        ? 'flex bg-transparent border-theme-border text-transparent'
+                        : 'hidden lg:flex bg-transparent border-theme-border text-transparent opacity-0 group-hover:opacity-100'
+                  }`}
                   style={{
                     backgroundColor: isListSelected ? 'var(--color-theme-accent)' : undefined,
                     borderColor: isListSelected ? 'var(--color-theme-accent)' : undefined,
                   }}
                   title="Select item"
                 >
-                  <div className="w-1.5 h-1.5 rounded-xl bg-current" />
+                  {isListSelected && <Check size={12} className="stroke-[3px]" />}
                 </div>
 
                 {/* Visual Thumbnail (YouTube only when enabled) or Compact Platform Icon */}
@@ -368,16 +378,32 @@ export const Feed: React.FC<FeedProps> = ({
                       </button>
                     </>
                   ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteItem(item.id);
-                      }}
-                      title="Move to Trash"
-                      className="p-2 rounded-xl text-theme-muted hover:text-rose-500 hover:bg-black/5 transition"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <>
+                      {onQuickActions && !isSelectionMode && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onQuickActions(item);
+                          }}
+                          title="Item actions"
+                          aria-label="Item actions"
+                          className="p-2 rounded-xl text-theme-muted hover:text-theme-text hover:bg-black/5 transition lg:hidden"
+                        >
+                          <MoreVertical size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteItem(item.id);
+                        }}
+                        title="Move to Trash"
+                        className="hidden lg:inline-flex p-2 rounded-xl text-theme-muted hover:text-rose-500 hover:bg-black/5 transition"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </>
                   )}
                   <a
                     href={item.url}
@@ -421,7 +447,9 @@ export const Feed: React.FC<FeedProps> = ({
             const showThumbnail = showYouTubeViewer && Boolean(getYouTubeVideoId(item.url));
 
             const handleCardClick = (e: React.MouseEvent) => {
-              if (e.metaKey || e.ctrlKey || e.shiftKey) {
+              if (isSelectionMode) {
+                onToggleSelectItem(item.id, true);
+              } else if (e.metaKey || e.ctrlKey || e.shiftKey) {
                 e.stopPropagation();
                 e.preventDefault();
                 onToggleSelectItem(item.id, true);
@@ -475,20 +503,22 @@ export const Feed: React.FC<FeedProps> = ({
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
-                          onToggleSelectItem(item.id, false);
+                          onToggleSelectItem(item.id, isSelectionMode || selectedItemIds.length > 0 || e.metaKey || e.ctrlKey);
                         }}
-                        className={`absolute top-3 left-3 w-5 h-5 rounded-xl border flex items-center justify-center transition-all z-20 cursor-pointer ${
+                        className={`absolute top-3 left-3 w-5 h-5 rounded-lg border flex items-center justify-center transition-all z-20 cursor-pointer ${
                           isSelected
-                            ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-md'
-                            : 'bg-black/40 border-white/60 text-transparent opacity-0 group-hover:opacity-100'
-                        } ${selectedItemIds.length > 0 ? 'opacity-100' : ''}`}
+                            ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-md opacity-100'
+                            : isSelectionMode || selectedItemIds.length > 0
+                              ? 'bg-black/50 border-white/80 text-transparent opacity-100'
+                              : 'bg-black/40 border-white/60 text-transparent opacity-0 group-hover:opacity-100'
+                        }`}
                         style={{
                           backgroundColor: isSelected ? 'var(--color-theme-accent)' : undefined,
                           borderColor: isSelected ? 'var(--color-theme-accent)' : undefined,
                         }}
                         title="Select item"
                       >
-                        <div className="w-1.5 h-1.5 rounded-xl bg-current" />
+                        {isSelected && <Check size={12} className="stroke-[3px]" />}
                       </div>
 
                       {/* Drag Handle Indicator */}
@@ -530,17 +560,33 @@ export const Feed: React.FC<FeedProps> = ({
                           </div>
                         )}
 
-                        {/* Interactive External Link Button Overlay */}
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md z-20 opacity-90 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-y-1 lg:group-hover:translate-y-0 duration-300 border border-white/5 cursor-pointer flex items-center justify-center"
-                          title={`Open original URL on ${item.platform}`}
-                        >
-                          <ExternalLink size={12} className="stroke-[2.5px]" />
-                        </a>
+                        {/* Interactive Action & External Link Buttons Overlay */}
+                        <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-20">
+                          {onQuickActions && !isTrashView && !isSelectionMode && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickActions(item);
+                              }}
+                              className="lg:hidden p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md border border-white/5 cursor-pointer flex items-center justify-center"
+                              title="Item actions"
+                              aria-label="Item actions"
+                            >
+                              <MoreVertical size={12} />
+                            </button>
+                          )}
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md opacity-90 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-y-1 lg:group-hover:translate-y-0 duration-300 border border-white/5 cursor-pointer flex items-center justify-center"
+                            title={`Open original URL on ${item.platform}`}
+                          >
+                            <ExternalLink size={12} className="stroke-[2.5px]" />
+                          </a>
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -550,20 +596,22 @@ export const Feed: React.FC<FeedProps> = ({
                         <div
                           onClick={(e) => {
                             e.stopPropagation();
-                            onToggleSelectItem(item.id, false);
+                            onToggleSelectItem(item.id, isSelectionMode || selectedItemIds.length > 0 || e.metaKey || e.ctrlKey);
                           }}
-                          className={`w-4 h-4 rounded-lg border flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                          className={`w-4 h-4 rounded-md border items-center justify-center transition-all cursor-pointer shrink-0 ${
                             isSelected
-                              ? 'bg-theme-accent border-theme-accent text-white scale-110 shadow-sm'
-                              : 'bg-theme-sidebar border-theme-border text-transparent opacity-60 lg:opacity-0 lg:group-hover:opacity-100'
-                          } ${selectedItemIds.length > 0 ? 'opacity-100' : ''}`}
+                              ? 'flex bg-theme-accent border-theme-accent text-white scale-105 shadow-sm opacity-100'
+                              : isSelectionMode || selectedItemIds.length > 0
+                                ? 'flex bg-theme-sidebar border-theme-border text-transparent opacity-100'
+                                : 'hidden lg:flex bg-theme-sidebar border-theme-border text-transparent opacity-0 group-hover:opacity-100'
+                          }`}
                           style={{
                             backgroundColor: isSelected ? 'var(--color-theme-accent)' : undefined,
                             borderColor: isSelected ? 'var(--color-theme-accent)' : undefined,
                           }}
                           title="Select item"
                         >
-                          <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                          {isSelected && <Check size={10} className="stroke-[3px]" />}
                         </div>
 
                         {showPlatformBadges && item.platform && (
@@ -589,11 +637,25 @@ export const Feed: React.FC<FeedProps> = ({
                           <div
                             onDragStart={(e) => e.stopPropagation()}
                             draggable={false}
-                            className="p-1.5 rounded-xl text-theme-muted hover:text-theme-text opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+                            className="hidden lg:block p-1.5 rounded-xl text-theme-muted hover:text-theme-text opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
                             title="Drag to reorder"
                           >
                             <GripVertical size={12} />
                           </div>
+                        )}
+                        {onQuickActions && !isTrashView && !isSelectionMode && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onQuickActions(item);
+                            }}
+                            className="lg:hidden p-1.5 rounded-xl bg-theme-sidebar border border-theme-border text-theme-muted hover:text-theme-text transition-all cursor-pointer flex items-center justify-center"
+                            title="Item actions"
+                            aria-label="Item actions"
+                          >
+                            <MoreVertical size={12} />
+                          </button>
                         )}
                         <a
                           href={item.url}

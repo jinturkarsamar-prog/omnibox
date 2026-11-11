@@ -308,42 +308,42 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
         </div>
 
         {/* Tab Navigation Row */}
-        <div className="flex bg-black/15 p-1 rounded-xl border border-theme-border/50 shadow-inner">
+        <div className="grid grid-cols-3 w-full sm:w-auto sm:flex bg-black/15 p-1 rounded-xl border border-theme-border/50 shadow-inner gap-1">
           <button
             type="button"
             onClick={() => setActiveTab('appearance')}
-            className={`flex items-center space-x-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
+            className={`flex items-center justify-center space-x-1.5 py-2 px-2.5 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
               activeTab === 'appearance'
                 ? 'bg-theme-card text-theme-text shadow-xs border border-theme-border/40 font-bold'
                 : 'text-theme-muted hover:text-theme-text'
             }`}
           >
-            <Paintbrush size={14} className={activeTab === 'appearance' ? 'text-theme-accent' : ''} />
-            <span className="hidden sm:inline">Appearance</span>
+            <Paintbrush size={14} className={`shrink-0 ${activeTab === 'appearance' ? 'text-theme-accent' : ''}`} />
+            <span className="truncate">Appearance</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('rules')}
-            className={`flex items-center space-x-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
+            className={`flex items-center justify-center space-x-1.5 py-2 px-2.5 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
               activeTab === 'rules'
                 ? 'bg-theme-card text-theme-text shadow-xs border border-theme-border/40 font-bold'
                 : 'text-theme-muted hover:text-theme-text'
             }`}
           >
-            <Zap size={14} className={activeTab === 'rules' ? 'text-theme-accent' : ''} />
-            <span className="hidden sm:inline">Auto-Rules</span>
+            <Zap size={14} className={`shrink-0 ${activeTab === 'rules' ? 'text-theme-accent' : ''}`} />
+            <span className="truncate"><span className="hidden sm:inline">Auto-</span>Rules</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('system')}
-            className={`flex items-center space-x-2 py-2 px-3 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
+            className={`flex items-center justify-center space-x-1.5 py-2 px-2.5 sm:px-4 rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer ${
               activeTab === 'system'
                 ? 'bg-theme-card text-theme-text shadow-xs border border-theme-border/40 font-bold'
                 : 'text-theme-muted hover:text-theme-text'
             }`}
           >
-            <Database size={14} className={activeTab === 'system' ? 'text-theme-accent' : ''} />
-            <span className="hidden sm:inline">System & Data</span>
+            <Database size={14} className={`shrink-0 ${activeTab === 'system' ? 'text-theme-accent' : ''}`} />
+            <span className="truncate">System<span className="hidden sm:inline"> &amp; Data</span></span>
           </button>
         </div>
       </div>
