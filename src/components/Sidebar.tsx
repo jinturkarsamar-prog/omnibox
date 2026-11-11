@@ -316,11 +316,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
+      {isOpen && (
+        <div
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs lg:hidden"
+        />
+      )}
       <aside
-        className={`hidden lg:flex flex-col bg-theme-sidebar transition-all duration-300 lg:static lg:h-screen ${
+        className={`flex flex-col bg-theme-sidebar transition-all duration-300 lg:static lg:h-dvh ${
           isOpen
-            ? 'lg:w-64 lg:opacity-100 border-r border-theme-border'
-            : 'lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0'
+            ? 'fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] h-dvh pt-safe pb-safe shadow-2xl lg:shadow-none lg:w-64 lg:opacity-100 border-r border-theme-border'
+            : 'hidden lg:flex lg:w-0 lg:opacity-0 lg:overflow-hidden lg:border-r-0'
         }`}
       >
       {/* Sidebar Header (Serif Display Header matching design spec) */}

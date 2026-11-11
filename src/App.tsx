@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, migrateFromLocalStorage, INITIAL_ITEMS, INITIAL_FOLDERS, INITIAL_TAGS, INITIAL_RULES } from "./db";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Layers,
   Search,
@@ -36,6 +36,7 @@ import { BottomSheet } from './components/BottomSheet';
 import { ToastNotification, ToastMessage } from './components/ToastNotification';
 import { QuickShareOverlay } from './components/QuickShareOverlay';
 import { quickParseUrl, extractFirstUrl } from './utils/quickParse';
+import { useBackHandler, BackStackLayer } from './utils/backNavigation';
 
 const PENDING_ENRICH_KEY = 'omnibox_pending_enrichments';
 
@@ -100,9 +101,35 @@ export default function App() {
     [isQuickShareMode]
   ) || [];
 
-  // Navigation & Filter States
-  const [activeSection, setActiveSection] = useState('all'); // 'all' | 'inbox' | 'trash' | 'folder-[id]'
-  const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
+  // Navigation & Filter States (persisted across phone app close/reopen)
+  const [activeSection, setActiveSection] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'all';
+    return localStorage.getItem('omnibox_active_section') || 'all';
+  });
+  const [activeFolderId, setActiveFolderId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const savedSection = localStorage.getItem('omnibox_active_section') || 'all';
+    if (savedSection.startsWith('folder-')) {
+      return savedSection.replace('folder-', '');
+    }
+    return localStorage.getItem('omnibox_active_folder_id') || null;
+  });
+  const [sectionHistory, setSectionHistory] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return ['all'];
+    const savedSection = localStorage.getItem('omnibox_active_section') || 'all';
+    try {
+      const raw = localStorage.getItem('omnibox_section_history');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[parsed.length - 1] === savedSection) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Ignore malformed stored history
+    }
+    return savedSection === 'all' ? ['all'] : ['all', savedSection];
+  });
 
   // Theme Settings state
   const [activeThemeId, setActiveThemeId] = useState<string>(() => {
@@ -159,15 +186,25 @@ export default function App() {
     }
     return false;
   });
+  const [isMobileDrawerMode, setIsMobileDrawerMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 1024;
+    }
+    return false;
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    let prevIsDesktop = window.innerWidth >= 1280;
     const handleResize = () => {
-      setIsSidebarOpen(window.innerWidth >= 1280);
+      const nowDesktop = window.innerWidth >= 1280;
+      setIsMobileDrawerMode(window.innerWidth < 1024);
+      if (nowDesktop !== prevIsDesktop) {
+        prevIsDesktop = nowDesktop;
+        setIsSidebarOpen(nowDesktop);
+      }
     };
     window.addEventListener('resize', handleResize);
-    // Trigger on mount to ensure correct initial state
-    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -178,20 +215,116 @@ export default function App() {
     localStorage.setItem('omnibox_auto_close_share', String(autoCloseOnShare));
   }, [autoCloseOnShare]);
 
-  // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [platformFilter, setPlatformFilter] = useState<string>('All');
-  const [formatFilter, setFormatFilter] = useState<string>('All');
+  // Search & Filter state (persisted across reopen)
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('omnibox_search_query') || '';
+  });
+  const [platformFilter, setPlatformFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'All';
+    return localStorage.getItem('omnibox_platform_filter') || 'All';
+  });
+  const [formatFilter, setFormatFilter] = useState<string>(() => {
+    if (typeof window === 'undefined') return 'All';
+    return localStorage.getItem('omnibox_format_filter') || 'All';
+  });
 
   // Popup Dialog States
   const [selectedItem, setSelectedItem] = useState<SavedItem | null>(null);
   const [showFullDetailSheet, setShowFullDetailSheet] = useState(false);
 
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+  const hasRestoredSelectedRef = useRef(false);
+  const hasRestoredScrollRef = useRef(false);
+  const scrollSaveTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('omnibox_active_section', activeSection);
+    if (activeFolderId) {
+      localStorage.setItem('omnibox_active_folder_id', activeFolderId);
+    } else {
+      localStorage.removeItem('omnibox_active_folder_id');
+    }
+  }, [activeSection, activeFolderId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('omnibox_section_history', JSON.stringify(sectionHistory));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [sectionHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('omnibox_search_query', searchQuery);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    localStorage.setItem('omnibox_platform_filter', platformFilter);
+  }, [platformFilter]);
+
+  useEffect(() => {
+    localStorage.setItem('omnibox_format_filter', formatFilter);
+  }, [formatFilter]);
+
   useEffect(() => {
     if (!selectedItem) {
       setShowFullDetailSheet(false);
+      if (hasRestoredSelectedRef.current) {
+        localStorage.removeItem('omnibox_selected_item_id');
+      }
+    } else {
+      localStorage.setItem('omnibox_selected_item_id', selectedItem.id);
     }
   }, [selectedItem]);
+
+  // Restore open item & scroll position when items load after closing/reopening PWA
+  useEffect(() => {
+    if (isQuickShareMode || items.length === 0) return;
+
+    if (!hasRestoredSelectedRef.current) {
+      hasRestoredSelectedRef.current = true;
+      const savedId = localStorage.getItem('omnibox_selected_item_id');
+      if (savedId) {
+        const match = items.find((i) => i.id === savedId);
+        if (match) {
+          setSelectedItem(match);
+        } else {
+          localStorage.removeItem('omnibox_selected_item_id');
+        }
+      }
+    }
+
+    if (!hasRestoredScrollRef.current && mainScrollRef.current) {
+      hasRestoredScrollRef.current = true;
+      const savedScroll = parseInt(localStorage.getItem('omnibox_scroll_top') || '0', 10);
+      if (savedScroll > 0) {
+        requestAnimationFrame(() => {
+          if (mainScrollRef.current) {
+            mainScrollRef.current.scrollTop = savedScroll;
+          }
+        });
+      }
+    }
+  }, [items, isQuickShareMode]);
+
+  // Persist scroll position when backgrounding/closing PWA
+  useEffect(() => {
+    const flushScroll = () => {
+      if (mainScrollRef.current) {
+        localStorage.setItem('omnibox_scroll_top', String(mainScrollRef.current.scrollTop));
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flushScroll();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', flushScroll);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('pagehide', flushScroll);
+    };
+  }, []);
 
   const [showAddDialog, setShowAddDialog] = useState(false);
 
@@ -389,8 +522,44 @@ export default function App() {
     } else {
       setActiveFolderId(null);
     }
+
+    if (section === 'all') {
+      setSectionHistory(['all']);
+    } else {
+      setSectionHistory((prev) => {
+        if (prev[prev.length - 1] === section) return prev;
+        return [...prev, section].slice(-8);
+      });
+    }
+
+    localStorage.setItem('omnibox_scroll_top', '0');
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+    }
     setIsSidebarOpen(false); // Close drawer on mobile navigate
   };
+
+  const handleNavigateBackSection = () => {
+    setSectionHistory((prev) => {
+      const nextHistory = prev.length > 1 ? prev.slice(0, -1) : ['all'];
+      const targetSection = nextHistory[nextHistory.length - 1] || 'all';
+      setActiveSection(targetSection);
+      if (targetSection.startsWith('folder-')) {
+        setActiveFolderId(targetSection.replace('folder-', ''));
+      } else {
+        setActiveFolderId(null);
+      }
+      return nextHistory;
+    });
+  };
+
+  // Android / browser universal back handlers for top-level overlays
+  useBackHandler(isSidebarOpen && isMobileDrawerMode, () => setIsSidebarOpen(false));
+  useBackHandler(isCommandPaletteOpen, () => setIsCommandPaletteOpen(false));
+  useBackHandler(Boolean(contextMenu), () => setContextMenu(null));
+  useBackHandler(Boolean(selectedItem) && isWideScreen && !showFullDetailSheet, () =>
+    setSelectedItem(null)
+  );
 
   // =========================================================
   // ACTIONS: FOLDER PIPELINES
@@ -997,14 +1166,14 @@ export default function App() {
     if (type === 'platform') {
       const matched = PLATFORM_CHIPS.find(p => p.toLowerCase() === tagName.toLowerCase());
       setPlatformFilter(matched || tagName);
-      setActiveSection('all');
+      handleNavigate('all');
     } else if (type === 'format') {
       const matched = FORMAT_CHIPS.find(f => f.toLowerCase() === tagName.toLowerCase());
       setFormatFilter(matched || tagName);
-      setActiveSection('all');
+      handleNavigate('all');
     } else if (type === 'user') {
       setSearchQuery(tagName);
-      setActiveSection('all');
+      handleNavigate('all');
     }
   };
 
@@ -1080,7 +1249,11 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-theme-app font-sans antialiased text-theme-text transition-colors duration-200">
+    <div className="flex h-dvh overflow-hidden bg-theme-app font-sans antialiased text-theme-text transition-colors duration-200">
+      {sectionHistory.slice(1).map((sec, idx) => (
+        <BackStackLayer key={`${idx}-${sec}`} onBack={handleNavigateBackSection} />
+      ))}
+
       {/* Recursively nested Sidebar Panel */}
       <Sidebar
         folders={folders}
@@ -1109,14 +1282,16 @@ export default function App() {
       {/* Main Content Dashboard Frame */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-theme-app transition-colors duration-200">
         {/* Navbar */}
-        <header className="h-16 shrink-0 border-b border-theme-border flex items-center justify-between px-4 sm:px-6 bg-theme-sidebar/85 backdrop-blur-md sticky top-0 z-30 transition-colors duration-200 text-theme-text">
-          <div className="flex items-center space-x-3">
-            {/* Elegant Logo (Click to toggle Sidebar collapse/expand) */}
+        <header className="min-h-14 sm:min-h-16 pt-safe shrink-0 border-b border-theme-border flex items-center justify-between px-3 sm:px-6 bg-theme-sidebar/85 backdrop-blur-md sticky top-0 z-30 transition-colors duration-200 text-theme-text">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Hamburger + Logo (Opens mobile drawer on phone, collapses sidebar on desktop) */}
             <button
+              type="button"
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="flex items-center space-x-2.5 cursor-pointer hover:opacity-85 active:scale-95 transition-all text-left focus:outline-none"
-              title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+              className="flex items-center space-x-2 cursor-pointer hover:opacity-85 active:scale-95 transition-all text-left focus:outline-none py-1 pr-2 rounded-xl"
+              title={isSidebarOpen ? "Collapse sidebar" : "Open menu"}
             >
+              <Menu size={18} className="lg:hidden text-theme-muted shrink-0" />
               <Logo size={32} />
               <span className="font-display italic text-theme-text text-lg tracking-tight hidden sm:block">
                 OmniBox
@@ -1141,18 +1316,30 @@ export default function App() {
           {/* Right Action Menu */}
           <div className="flex items-center space-x-3">
             <button
+              type="button"
               onClick={() => setShowAddDialog(true)}
-              className="flex items-center space-x-1 sm:space-x-1.5 bg-theme-accent hover:bg-theme-hover text-white font-semibold px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs transition shrink-0 shadow-lg"
+              className="flex items-center space-x-1 sm:space-x-1.5 bg-theme-accent hover:bg-theme-hover text-white font-semibold px-3 min-h-[38px] sm:px-4 sm:py-2 rounded-xl text-xs transition shrink-0 shadow-lg active:scale-95"
             >
               <Plus size={14} />
-              <span className="hidden sm:inline">Add</span>
-              <span className="inline sm:hidden">Add</span>
+              <span>Add</span>
             </button>
           </div>
         </header>
 
         {/* Dashboard Panels Scroll Frame */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-24 lg:pb-6 scrollbar-thin">
+        <div
+          ref={mainScrollRef}
+          onScroll={(e) => {
+            const top = e.currentTarget.scrollTop;
+            if (scrollSaveTimerRef.current !== null) {
+              window.clearTimeout(scrollSaveTimerRef.current);
+            }
+            scrollSaveTimerRef.current = window.setTimeout(() => {
+              localStorage.setItem('omnibox_scroll_top', String(top));
+            }, 150);
+          }}
+          className="flex-1 overflow-y-auto p-4 sm:p-6 pb-28 lg:pb-6 scrollbar-thin"
+        >
           {activeSection === 'inbox' ? (
             // =========================================================
             // LANDING INBOX PROCESSING BOARD
@@ -1167,6 +1354,10 @@ export default function App() {
               onAssignTagsToItems={handleMassTag}
               onDeleteItems={handleMassDelete}
               onContextMenu={handleContextMenu}
+              onSwipeRightItem={(item) => {
+                setSwipeActiveItem(item);
+                setShowFolderSwipeSheet(true);
+              }}
             />
           ) : activeSection === 'trash' ? (
             // =========================================================
@@ -1266,7 +1457,7 @@ export default function App() {
                   placeholder="Search titles, notes, #tags..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-theme-card border border-theme-border rounded-xl pl-10 pr-4 py-2.5 text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent transition shadow-inner"
+                  className="w-full bg-theme-card border border-theme-border rounded-xl pl-10 pr-4 py-2.5 text-base sm:text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent transition shadow-inner"
                 />
               </div>
 
@@ -1275,7 +1466,7 @@ export default function App() {
                 <span className="text-[10px] font-bold text-theme-muted uppercase tracking-widest block">
                   Quick Filter Platforms
                 </span>
-                <div className="flex overflow-x-auto gap-1.5 pb-2 -mx-6 px-6 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:-mx-0 sm:px-0">
+                <div className="flex overflow-x-auto gap-1.5 pb-2 -mx-4 px-4 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
                   {PLATFORM_CHIPS.map((p) => {
                     const isActive = platformFilter === p;
                     return (
@@ -1300,7 +1491,7 @@ export default function App() {
                 <span className="text-[10px] font-bold text-theme-muted uppercase tracking-widest block">
                   Quick Filter Formats
                 </span>
-                <div className="flex overflow-x-auto gap-1.5 pb-2 -mx-6 px-6 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:-mx-0 sm:px-0">
+                <div className="flex overflow-x-auto gap-1.5 pb-2 -mx-4 px-4 scrollbar-none sm:flex-wrap sm:overflow-visible sm:pb-0 sm:mx-0 sm:px-0">
                   {FORMAT_CHIPS.map((f) => {
                     const isActive = formatFilter === f;
                     return (
@@ -1405,6 +1596,7 @@ export default function App() {
           setPrefillData(null);
           setShowAddDialog(true);
         }}
+        onOpenSidebar={() => setIsSidebarOpen(true)}
         folders={folders}
         itemsCount={itemsCount}
       />

@@ -21,9 +21,16 @@ import {
   Info,
   ShieldAlert,
   Gauge,
+  Archive,
+  FileText,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag, AutoRule, ThemeConfig } from '../types';
 import { THEME_PRESETS } from '../theme';
+import {
+  buildObsidianVaultZip,
+  downloadBlob,
+  libraryToSingleObsidianMarkdown,
+} from '../utils/obsidianExport';
 
 interface SettingsSectionProps {
   layout: 'gallery' | 'list';
@@ -85,6 +92,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [obsidianStatus, setObsidianStatus] = useState<string | null>(null);
   const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'appearance' | 'rules' | 'system'>(() => {
@@ -211,14 +219,26 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `omnibox-backup-with-themes-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `omnibox-backup-with-themes-${new Date().toISOString().split('T')[0]}.json`);
+  };
+
+  const handleExportObsidianZip = () => {
+    const activeCount = items.filter((item) => !item.deletedAt).length;
+    const zipBlob = buildObsidianVaultZip(items, folders);
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadBlob(zipBlob, `omnibox-obsidian-vault-${dateStr}.zip`);
+    setObsidianStatus(`Exported ${activeCount} note${activeCount === 1 ? '' : 's'} as an Obsidian Vault (.zip).`);
+    setTimeout(() => setObsidianStatus(null), 4000);
+  };
+
+  const handleExportObsidianSingle = () => {
+    const activeCount = items.filter((item) => !item.deletedAt).length;
+    const markdown = libraryToSingleObsidianMarkdown(items, folders);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadBlob(blob, `omnibox-obsidian-export-${dateStr}.md`);
+    setObsidianStatus(`Exported ${activeCount} item${activeCount === 1 ? '' : 's'} into a single Markdown file.`);
+    setTimeout(() => setObsidianStatus(null), 4000);
   };
 
   const handleImportClick = () => {
@@ -957,7 +977,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                   className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer"
                 >
                   <Download size={14} className="text-theme-accent" />
-                  <span>Download</span>
+                  <span>JSON Backup</span>
                 </button>
 
                 {/* Import Button */}
@@ -967,8 +987,40 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                   className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer"
                 >
                   <Upload size={14} className="text-theme-accent" />
-                  <span>Upload</span>
+                  <span>Restore JSON</span>
                 </button>
+              </div>
+
+              {/* Obsidian Markdown Export */}
+              <div className="pt-3 border-t border-theme-border/60 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-theme-text">Export for Obsidian (.md)</span>
+                  <span className="text-[11px] text-theme-muted">YAML frontmatter &amp; folders</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={handleExportObsidianZip}
+                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer"
+                  >
+                    <Archive size={14} className="text-theme-accent shrink-0" />
+                    <span>Vault Folder (.zip)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportObsidianSingle}
+                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer"
+                  >
+                    <FileText size={14} className="text-theme-accent shrink-0" />
+                    <span>Single Note (.md)</span>
+                  </button>
+                </div>
+                {obsidianStatus && (
+                  <div className="flex items-center space-x-2 p-2.5 bg-emerald-950/20 border border-emerald-900/30 text-emerald-400 rounded-xl text-xs">
+                    <Check size={14} className="shrink-0" />
+                    <span>{obsidianStatus}</span>
+                  </div>
+                )}
               </div>
 
               <input

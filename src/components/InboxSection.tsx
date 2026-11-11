@@ -26,7 +26,10 @@ interface InboxSectionProps {
   onMoveItemsToFolder: (ids: string[], folderId: string | null) => void;
   onAssignTagsToItems: (ids: string[], tagNames: string[]) => void;
   onDeleteItems: (ids: string[]) => void;
-  onContextMenu?: (e: React.MouseEvent, item: SavedItem) => void;  layout: "gallery" | "list";
+  onContextMenu?: (e: React.MouseEvent, item: SavedItem) => void;
+  onTagClick?: (tagName: string, type: 'user' | 'platform' | 'format') => void;
+  onSwipeRightItem?: (item: SavedItem) => void;
+  layout: "gallery" | "list";
   setLayout: (l: "gallery" | "list") => void;
   gallerySize?: 'comfortable' | 'standard' | 'compact';
   listDensity?: 'comfortable' | 'compact';
@@ -43,7 +46,9 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
   onAssignTagsToItems,
   onDeleteItems,
   onContextMenu,
-  onTagClick,  layout,
+  onTagClick,
+  onSwipeRightItem,
+  layout,
   setLayout,
   gallerySize = 'standard',
   listDensity = 'comfortable',
@@ -51,6 +56,7 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
 }) => {
   // Selected items for mass actions
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [openMenu, setOpenMenu] = useState<'move' | 'tag' | null>(null);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === inboxItems.length) {
@@ -137,63 +143,91 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
               </button>
 
               {/* Mass Action Button: Move */}
-              <div className="relative group/mass-move">
+              <div className="relative">
                 <button
+                  type="button"
                   disabled={selectedIds.length === 0}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-theme-border bg-theme-sidebar text-xs text-theme-text hover:bg-theme-card transition shadow-sm disabled:opacity-40 disabled:pointer-events-none"
+                  onClick={() => setOpenMenu((prev) => (prev === 'move' ? null : 'move'))}
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-theme-border bg-theme-sidebar text-xs text-theme-text hover:bg-theme-card transition shadow-sm disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                 >
                   <FolderOpen size={14} />
                   <span>Move to ({selectedIds.length})</span>
                 </button>
-                {selectedIds.length > 0 && (
-                  <div className="absolute bottom-full right-0 mb-1 hidden group-hover/mass-move:block w-48 rounded-xl bg-theme-sidebar border border-theme-border shadow-xl overflow-hidden py-1 z-20">
-                    {folders.map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => handleMassMove(f.id)}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-theme-card text-theme-text flex items-center space-x-1.5 transition-colors"
-                      >
-                        <span className="w-2 h-2 rounded-xl" style={{ backgroundColor: f.color }} />
-                        <span>{f.name}</span>
-                      </button>
-                    ))}
-                  </div>
+                {openMenu === 'move' && selectedIds.length > 0 && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setOpenMenu(null)}
+                    />
+                    <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl bg-theme-sidebar border border-theme-border shadow-xl overflow-hidden py-1 z-20 max-h-60 overflow-y-auto">
+                      {folders.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => {
+                            handleMassMove(f.id);
+                            setOpenMenu(null);
+                          }}
+                          className="w-full text-left px-3 py-2.5 text-xs hover:bg-theme-card text-theme-text flex items-center space-x-2 transition-colors cursor-pointer"
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: f.color }} />
+                          <span className="truncate">{f.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
 
               {/* Mass Action Button: Tag */}
-              <div className="relative group/mass-tag">
+              <div className="relative">
                 <button
+                  type="button"
                   disabled={selectedIds.length === 0}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-theme-border bg-theme-sidebar text-xs text-theme-text hover:bg-theme-card transition shadow-sm disabled:opacity-40 disabled:pointer-events-none"
+                  onClick={() => setOpenMenu((prev) => (prev === 'tag' ? null : 'tag'))}
+                  className="flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-theme-border bg-theme-sidebar text-xs text-theme-text hover:bg-theme-card transition shadow-sm disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
                 >
                   <TagIcon size={14} />
                   <span>Assign Tag</span>
                 </button>
-                {selectedIds.length > 0 && tags.length > 0 && (
-                  <div className="absolute bottom-full right-0 mb-1 hidden group-hover/mass-tag:block w-48 rounded-xl bg-theme-sidebar border border-theme-border shadow-xl overflow-hidden py-1 z-20 max-h-48 overflow-y-auto">
-                    {tags.map((t) => (
-                      <button
-                        key={t.id}
-                        onClick={() => handleMassTag(t.name)}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-theme-card text-theme-text flex items-center space-x-1.5 transition-colors"
-                      >
-                        <span className="w-2 h-2 rounded-xl" style={{ backgroundColor: t.color }} />
-                        <span>{t.name}</span>
-                      </button>
-                    ))}
-                  </div>
+                {openMenu === 'tag' && selectedIds.length > 0 && tags.length > 0 && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setOpenMenu(null)}
+                    />
+                    <div className="absolute top-full left-0 mt-1.5 w-52 rounded-xl bg-theme-sidebar border border-theme-border shadow-xl overflow-hidden py-1 z-20 max-h-60 overflow-y-auto">
+                      {tags.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => {
+                            handleMassTag(t.name);
+                            setOpenMenu(null);
+                          }}
+                          className="w-full text-left px-3 py-2.5 text-xs hover:bg-theme-card text-theme-text flex items-center space-x-2 transition-colors cursor-pointer"
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: t.color }} />
+                          <span className="truncate">{t.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
 
               {/* Mass Action: Delete */}
               <button
-                onClick={handleMassDelete}
+                type="button"
+                onClick={() => {
+                  setOpenMenu(null);
+                  handleMassDelete();
+                }}
                 disabled={selectedIds.length === 0}
-                className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 text-xs transition shadow-sm disabled:opacity-40 disabled:pointer-events-none"
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900/40 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 text-xs transition shadow-sm disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
               >
                 <Trash2 size={14} />
-                <span>Move to Trash ({selectedIds.length})</span>
+                <span>Trash ({selectedIds.length})</span>
               </button>
             </div>
           )}
@@ -221,6 +255,7 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
             onToggleSelectItem={(id, isMeta) => toggleSelectItem(id, null as any)}
             onDeleteItem={(id) => onDeleteItems([id])}
             onContextMenu={onContextMenu || (() => {})}
+            onSwipeRightItem={onSwipeRightItem}
           />
         )}
       </div>

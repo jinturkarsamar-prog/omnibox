@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
+import { useBackHandler } from '../utils/backNavigation';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -10,6 +11,8 @@ interface BottomSheetProps {
 }
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title, children }) => {
+  useBackHandler(isOpen, onClose);
+
   // Prevent background scrolling when bottom sheet is active
   useEffect(() => {
     if (isOpen) {
@@ -50,19 +53,21 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, onClose, title
                 onClose();
               }
             }}
-            className="fixed bottom-0 left-0 right-0 z-50 bg-theme-sidebar border-t border-theme-border rounded-xl-t-3xl flex flex-col max-h-[85vh] shadow-[0_-12px_36px_rgba(0,0,0,0.18)] pb-safe lg:hidden"
+            className="fixed bottom-0 left-0 right-0 z-50 bg-theme-sidebar border-t border-theme-border rounded-t-3xl flex flex-col max-h-[85dvh] shadow-[0_-12px_36px_rgba(0,0,0,0.18)] pb-safe lg:hidden"
           >
             {/* Native Android Bottom Sheet Style Drag Handle Tab */}
             <div className="w-12 h-1.5 bg-theme-border rounded-xl mx-auto mt-3.5 mb-2 shrink-0 opacity-80" />
 
             {/* Header bar */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-b border-theme-border shrink-0">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-theme-border shrink-0">
               <h3 className="text-xs font-bold text-theme-text uppercase tracking-widest">
                 {title}
               </h3>
               <button
+                type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition-colors"
+                aria-label="Close sheet"
+                className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition-colors"
               >
                 <X size={18} />
               </button>

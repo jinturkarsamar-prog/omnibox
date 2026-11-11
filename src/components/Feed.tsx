@@ -519,7 +519,7 @@ export const Feed: React.FC<FeedProps> = ({
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md z-20 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 duration-300 border border-white/5 cursor-pointer flex items-center justify-center"
+                      className="absolute bottom-3 right-3 p-2 rounded-xl bg-black/60 backdrop-blur-xs text-white/95 hover:text-white hover:bg-black/85 transition-all shadow-md z-20 opacity-90 lg:opacity-0 lg:group-hover:opacity-100 lg:translate-y-1 lg:group-hover:translate-y-0 duration-300 border border-white/5 cursor-pointer flex items-center justify-center"
                       title={`Open original URL on ${item.platform}`}
                     >
                       <ExternalLink size={12} className="stroke-[2.5px]" />

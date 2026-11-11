@@ -13,6 +13,9 @@ import {
   MessageSquare,
   Globe,
   Trash,
+  Copy,
+  Check,
+  Download,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
@@ -20,6 +23,12 @@ import { AudioDeckPlayer } from './AudioDeckPlayer';
 import { MoodboardStudio } from './MoodboardStudio';
 import { ImmersiveReader } from './ImmersiveReader';
 import { SocialSimulator } from './SocialSimulator';
+import { useBackHandler, BackStackLayer } from '../utils/backNavigation';
+import {
+  downloadBlob,
+  getItemMarkdownFilename,
+  itemToObsidianMarkdown,
+} from '../utils/obsidianExport';
 
 interface DetailSheetProps {
   item: SavedItem;
@@ -57,6 +66,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
 
   // Zoom Image Modal State
   const [showZoomModal, setShowZoomModal] = useState(false);
+  const [copiedMarkdown, setCopiedMarkdown] = useState(false);
 
   // Sync state whenever active item in the stack changes
   useEffect(() => {
@@ -69,18 +79,41 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
     }
   }, [activeItem]);
 
-  if (!activeItem) return null;
-
-  // Push recommendation onto history stack
-  const handlePushItem = (newItem: SavedItem) => {
-    setHistoryStack((prev) => [...prev, newItem]);
-  };
-
   // Pop from history stack
   const handlePopItem = () => {
     if (historyStack.length > 1) {
       setHistoryStack((prev) => prev.slice(0, -1));
     }
+  };
+
+  // Android / browser hardware back button support (layered LIFO)
+  useBackHandler(true, onClose);
+  useBackHandler(isEditing, () => setIsEditing(false));
+  useBackHandler(showZoomModal, () => setShowZoomModal(false));
+
+  if (!activeItem) return null;
+
+  const handleCopyMarkdown = async () => {
+    const markdown = itemToObsidianMarkdown(activeItem, folders);
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopiedMarkdown(true);
+      setTimeout(() => setCopiedMarkdown(false), 2000);
+    } catch {
+      // Fallback: download file if clipboard permission is unavailable
+      handleDownloadMarkdown();
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    const markdown = itemToObsidianMarkdown(activeItem, folders);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    downloadBlob(blob, getItemMarkdownFilename(activeItem));
+  };
+
+  // Push recommendation onto history stack
+  const handlePushItem = (newItem: SavedItem) => {
+    setHistoryStack((prev) => [...prev, newItem]);
   };
 
   // YouTube ID extractor
@@ -154,32 +187,38 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 backdrop-blur-md p-0 md:p-6 transition-all duration-300 animate-fade-in animate-duration-200">
+      {historyStack.slice(1).map((stackedItem) => (
+        <BackStackLayer key={stackedItem.id} onBack={handlePopItem} />
+      ))}
+
       {/* Detail Container Card */}
-      <div className="w-full max-w-5xl h-full md:h-[85vh] bg-theme-sidebar border-0 md:border border-theme-border rounded-xl-none md:rounded-xl flex flex-col overflow-hidden shadow-2xl relative">
+      <div className="w-full max-w-5xl h-dvh md:h-[85dvh] bg-theme-sidebar border-0 md:border border-theme-border rounded-none md:rounded-xl flex flex-col overflow-hidden shadow-2xl relative pt-safe pb-safe">
         {/* Top Control Bar */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-theme-border shrink-0 bg-theme-sidebar">
-          <div className="flex items-center space-x-3">
-            {historyStack.length > 1 && (
-              <button
-                onClick={handlePopItem}
-                className="flex items-center space-x-1.5 text-xs font-semibold text-theme-text bg-theme-card border border-theme-border hover:bg-theme-sidebar px-2.5 py-1.5 rounded-xl transition cursor-pointer"
-              >
-                <ArrowLeft size={14} />
-                <span>Back</span>
-              </button>
-            )}
-            <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-theme-border shrink-0 bg-theme-sidebar">
+          <div className="flex items-center space-x-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={historyStack.length > 1 ? handlePopItem : onClose}
+              className={`flex items-center space-x-1.5 text-xs font-semibold text-theme-text bg-theme-card border border-theme-border hover:bg-theme-sidebar px-2.5 py-2 rounded-xl transition cursor-pointer shrink-0 ${
+                historyStack.length > 1 ? '' : 'md:hidden'
+              }`}
+            >
+              <ArrowLeft size={15} />
+              <span>Back</span>
+            </button>
+            <div className="flex items-center space-x-2 min-w-0">
               <PlatformIcon platform={activeItem.platform} size={18} />
-              <span className="text-xs font-semibold text-theme-muted uppercase tracking-widest">
+              <span className="text-xs font-semibold text-theme-muted uppercase tracking-widest truncate">
                 {activeItem.platform} Detail
               </span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 shrink-0">
             <button
+              type="button"
               onClick={() => setIsEditing(!isEditing)}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition cursor-pointer ${
+              className={`text-xs font-semibold px-3 py-2 rounded-xl transition cursor-pointer ${
                 isEditing
                   ? 'bg-amber-500 text-slate-950 hover:bg-amber-600'
                   : 'bg-theme-card border border-theme-border text-theme-text hover:bg-theme-sidebar'
@@ -188,8 +227,10 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
               {isEditing ? 'Cancel Edit' : 'Edit Details'}
             </button>
             <button
+              type="button"
               onClick={onClose}
-              className="p-1.5 rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition cursor-pointer"
+              aria-label="Close detail view"
+              className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition cursor-pointer"
             >
               <X size={20} />
             </button>
@@ -279,22 +320,42 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
               )}
 
               {/* Source Quick Actions */}
-              <div className="flex items-center justify-between p-3.5 bg-theme-card/50 rounded-xl border border-theme-border">
-                <div className="flex items-center space-x-2 text-xs">
-                  <span className="text-theme-muted font-medium">Original URL:</span>
-                  <span className="text-theme-muted font-mono truncate max-w-[150px] md:max-w-[260px]">
+              <div className="flex flex-wrap items-center justify-between gap-2.5 p-3.5 bg-theme-card/50 rounded-xl border border-theme-border">
+                <div className="flex items-center space-x-2 text-xs min-w-0 flex-1">
+                  <span className="text-theme-muted font-medium shrink-0">Original URL:</span>
+                  <span className="text-theme-muted font-mono truncate">
                     {activeItem.url}
                   </span>
                 </div>
-                <a
-                  href={activeItem.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition"
-                >
-                  <span>Open on {activeItem.platform}</span>
-                  <ExternalLink size={12} />
-                </a>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopyMarkdown}
+                    className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer flex-1 sm:flex-initial"
+                    title="Copy Obsidian Markdown to clipboard"
+                  >
+                    {copiedMarkdown ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className="text-theme-accent" />}
+                    <span>{copiedMarkdown ? 'Copied .md' : 'Copy .md'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadMarkdown}
+                    className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer flex-1 sm:flex-initial"
+                    title="Download Obsidian Markdown note (.md)"
+                  >
+                    <Download size={12} className="text-theme-accent" />
+                    <span>Save .md</span>
+                  </button>
+                  <a
+                    href={activeItem.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0 w-full sm:w-auto"
+                  >
+                    <span>Open on {activeItem.platform}</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
               </div>
             </div>
 
@@ -326,7 +387,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                       type="text"
                       value={editHeader}
                       onChange={(e) => setEditHeader(e.target.value)}
-                      className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text focus:outline-none focus:border-theme-accent"
+                      className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent"
                     />
                   </div>
 
@@ -338,7 +399,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                       rows={4}
                       value={editNote}
                       onChange={(e) => setEditNote(e.target.value)}
-                      className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-sm text-theme-text focus:outline-none focus:border-theme-accent resize-none"
+                      className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent resize-none"
                     />
                   </div>
 

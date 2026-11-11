@@ -23,11 +23,31 @@
   --radius: 14px;
 }
 
+html,
+body {
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   font-family: var(--font-sans);
   background-color: var(--theme-bg-app, #FCFBF9);
   color: var(--theme-text-primary, #2A2521);
   transition: background-color 0.2s, color 0.2s;
+}
+
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 /* Custom scrollbars matching theme */

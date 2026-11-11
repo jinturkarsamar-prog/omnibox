@@ -18,6 +18,7 @@ interface BottomNavigationProps {
   activeSection: string;
   onNavigate: (section: string) => void;
   onAddClick: () => void;
+  onOpenSidebar?: () => void;
   folders: FolderType[];
   itemsCount: {
     all: number;
@@ -30,6 +31,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   activeSection,
   onNavigate,
   onAddClick,
+  onOpenSidebar,
   folders,
   itemsCount,
 }) => {
@@ -53,14 +55,14 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   return (
     <>
       {/* Sticky Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-theme-sidebar/95 backdrop-blur-md border-t border-theme-border h-[50px] px-4 flex items-center justify-between lg:hidden shadow-[0_-4px_24px_rgba(0,0,0,0.06)] transition-colors duration-200">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-theme-sidebar/95 backdrop-blur-md border-t border-theme-border min-h-[60px] pb-safe px-2 flex items-center justify-around lg:hidden shadow-[0_-4px_24px_rgba(0,0,0,0.06)] transition-colors duration-200">
         
         {/* Tab 1: Library (All) */}
         <button
           onClick={() => onNavigate('all')}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 min-h-[48px] py-1.5 transition cursor-pointer active:scale-95 ${
             activeSection === 'all' || activeSection.startsWith('folder-')
-              ? 'text-theme-accent scale-105'
+              ? 'text-theme-accent'
               : 'text-theme-muted hover:text-theme-text'
           }`}
         >
@@ -71,26 +73,28 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         {/* Tab 2: Inbox */}
         <button
           onClick={() => onNavigate('inbox')}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition cursor-pointer relative ${
+          className={`flex flex-col items-center justify-center flex-1 min-h-[48px] py-1.5 transition cursor-pointer active:scale-95 ${
             activeSection === 'inbox'
-              ? 'text-theme-accent scale-105'
+              ? 'text-theme-accent'
               : 'text-theme-muted hover:text-theme-text'
           }`}
         >
-          <Inbox size={20} className={activeSection === 'inbox' ? 'stroke-[2.5px]' : 'stroke-2'} />
+          <div className="relative">
+            <Inbox size={20} className={activeSection === 'inbox' ? 'stroke-[2.5px]' : 'stroke-2'} />
+            {itemsCount.inbox > 0 && (
+              <span className="absolute -top-1.5 -right-2.5 bg-theme-accent text-white font-bold text-[9px] min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center shadow-sm">
+                {itemsCount.inbox > 99 ? '99+' : itemsCount.inbox}
+              </span>
+            )}
+          </div>
           <span className="text-[10px] font-bold mt-1 tracking-wide">Inbox</span>
-          {itemsCount.inbox > 0 && (
-            <span className="absolute top-1 right-5 bg-theme-accent text-white font-bold text-[9px] w-4 h-4 rounded-xl flex items-center justify-center shadow-sm">
-              {itemsCount.inbox}
-            </span>
-          )}
         </button>
 
         {/* Tab 3: Centered floating "Quick Add" button */}
-        <div className="flex-1 flex justify-center -mt-6">
+        <div className="flex-1 flex justify-center -mt-5">
           <button
             onClick={onAddClick}
-            className="w-12 h-12 rounded-xl bg-theme-accent text-white hover:opacity-90 shadow-xl border border-theme-accent/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-all cursor-pointer ring-4 ring-theme-app"
+            className="w-12 h-12 rounded-2xl bg-theme-accent text-white hover:opacity-90 shadow-xl border border-theme-accent/50 flex items-center justify-center active:scale-95 transition-all cursor-pointer ring-4 ring-theme-app"
             title="Quick Add Item"
           >
             <Plus size={24} className="stroke-[3px]" />
@@ -100,9 +104,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         {/* Tab 4: Folders Sheet Trigger */}
         <button
           onClick={() => setIsFoldersOpen(true)}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 min-h-[48px] py-1.5 transition cursor-pointer active:scale-95 ${
             isFoldersOpen || activeSection.startsWith('folder-')
-              ? 'text-theme-accent scale-105'
+              ? 'text-theme-accent'
               : 'text-theme-muted hover:text-theme-text'
           }`}
         >
@@ -113,9 +117,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
         {/* Tab 5: More Actions Trigger */}
         <button
           onClick={() => setIsMoreOpen(true)}
-          className={`flex flex-col items-center justify-center flex-1 py-1.5 transition cursor-pointer ${
+          className={`flex flex-col items-center justify-center flex-1 min-h-[48px] py-1.5 transition cursor-pointer active:scale-95 ${
             isMoreOpen || activeSection === 'settings' || activeSection === 'trash'
-              ? 'text-theme-accent scale-105'
+              ? 'text-theme-accent'
               : 'text-theme-muted hover:text-theme-text'
           }`}
         >
@@ -151,12 +155,39 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
 
           {/* Folder Listings */}
           <div className="border-t border-theme-border/60 my-3 pt-2">
-            <span className="text-[10px] font-bold text-theme-muted uppercase tracking-wider block px-1.5 mb-2">
-              My Collections
-            </span>
+            <div className="flex items-center justify-between px-1.5 mb-2">
+              <span className="text-[10px] font-bold text-theme-muted uppercase tracking-wider">
+                My Collections
+              </span>
+              {onOpenSidebar && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFoldersOpen(false);
+                    onOpenSidebar();
+                  }}
+                  className="text-[11px] font-semibold text-theme-accent hover:underline cursor-pointer"
+                >
+                  Manage Folders &amp; Tags
+                </button>
+              )}
+            </div>
             {folders.length === 0 ? (
-              <div className="text-center py-6 text-xs text-theme-muted">
-                No folders created yet. Add a folder via the desktop sidebar!
+              <div className="text-center py-6 space-y-3">
+                <p className="text-xs text-theme-muted">No folders created yet.</p>
+                {onOpenSidebar && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFoldersOpen(false);
+                      onOpenSidebar();
+                    }}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-theme-accent text-white text-xs font-semibold cursor-pointer"
+                  >
+                    <Plus size={14} />
+                    <span>Open Folders Drawer</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2">
@@ -206,7 +237,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               <Settings size={20} />
             </div>
             <span className="text-xs font-bold">Preferences</span>
-            <span className="text-[10px] text-theme-muted mt-0.5">Themes & Engine</span>
+            <span className="text-[10px] text-theme-muted mt-0.5">Themes &amp; Rules</span>
           </button>
 
           {/* Option: Trash Recovery */}

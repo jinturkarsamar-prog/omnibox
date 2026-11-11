@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { PlatformType, FormatType, Folder, Tag } from '../types';
 import { quickParseUrl, extractFirstUrl } from '../utils/quickParse';
+import { useBackHandler } from '../utils/backNavigation';
 
 interface AddMediaDialogProps {
   folders: Folder[];
@@ -52,6 +53,8 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
   onScrape,
   prefillData,
 }) => {
+  useBackHandler(true, onClose);
+
   // Input fields state
   const [isExpanded, setIsExpanded] = useState(prefillData?.header ? true : false);
   const [isScraping, setIsScraping] = useState(false);
@@ -224,13 +227,13 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
             onClose();
           }
         }}
-        className="relative w-full max-w-2xl bg-theme-sidebar border-t md:border border-theme-border rounded-xl-t-3xl md:rounded-xl overflow-hidden shadow-2xl flex flex-col h-[85vh] md:h-auto md:max-h-[90vh] z-10"
+        className="relative w-full max-w-2xl bg-theme-sidebar border-t md:border border-theme-border rounded-t-3xl md:rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[90dvh] h-auto pb-safe z-10"
       >
         {/* Android Pull-to-Dismiss Visual Handle Tab */}
         <div className="w-12 h-1.5 bg-theme-border rounded-xl mx-auto mt-3.5 mb-1 shrink-0 md:hidden opacity-80" />
 
         {/* Header toolbar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border shrink-0 bg-theme-sidebar">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-theme-border shrink-0 bg-theme-sidebar">
           <div className="flex items-center space-x-2">
             <Sparkles className="text-theme-muted" size={18} />
             <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider">
@@ -240,7 +243,8 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition"
+            aria-label="Close"
+            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition"
           >
             <X size={20} />
           </button>
@@ -248,7 +252,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
 
         {/* Scrollable Form Content */}
         {!isExpanded ? (
-          <form onSubmit={handleQuickSubmit} className="flex-1 p-6 space-y-4 overflow-y-auto">
+          <form onSubmit={handleQuickSubmit} className="flex-1 p-5 sm:p-6 space-y-4 overflow-y-auto">
             <p className="text-xs text-theme-muted">
               Saves instantly (&lt;5ms) and enriches title &amp; thumbnail silently in the background. Tip: press <kbd className="px-1.5 py-0.5 rounded bg-theme-card border border-theme-border font-mono text-[10px]">Cmd/Ctrl+V</kbd> anywhere in the app to instant-save!
             </p>
@@ -264,7 +268,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   disabled={isScraping}
-                  className="w-full bg-theme-card border border-theme-border rounded-xl pl-9 pr-3.5 py-3 text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50 disabled:opacity-50"
+                  className="w-full bg-theme-card border border-theme-border rounded-xl pl-9 pr-3.5 py-3 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50 disabled:opacity-50"
                   required
                 />
               </div>
@@ -284,7 +288,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 className="bg-theme-accent hover:bg-theme-hover disabled:opacity-50 text-white font-semibold px-6 py-3 rounded-xl text-sm transition flex items-center justify-center space-x-1.5 w-full sm:w-auto shrink-0 shadow-md cursor-pointer"
               >
                 {isScraping ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-xl animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <Check size={16} />
                 )}

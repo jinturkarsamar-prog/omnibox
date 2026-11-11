@@ -13,6 +13,9 @@ import {
   Edit2,
   Minimize2,
   Maximize2,
+  Copy,
+  Check,
+  Download,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
@@ -20,6 +23,11 @@ import { AudioDeckPlayer } from './AudioDeckPlayer';
 import { MoodboardStudio } from './MoodboardStudio';
 import { ImmersiveReader } from './ImmersiveReader';
 import { SocialSimulator } from './SocialSimulator';
+import {
+  downloadBlob,
+  getItemMarkdownFilename,
+  itemToObsidianMarkdown,
+} from '../utils/obsidianExport';
 
 interface InspectorPanelProps {
   item: SavedItem;
@@ -60,6 +68,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
   // Zoom Image Overlay Modal
   const [showZoomModal, setShowZoomModal] = useState(false);
+  const [copiedMarkdown, setCopiedMarkdown] = useState(false);
 
   // Sync active item state
   useEffect(() => {
@@ -81,6 +90,23 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
   const handlePushItem = (newItem: SavedItem) => {
     setHistoryStack((prev) => [...prev, newItem]);
+  };
+
+  const handleCopyMarkdown = async () => {
+    const markdown = itemToObsidianMarkdown(activeItem, folders);
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopiedMarkdown(true);
+      setTimeout(() => setCopiedMarkdown(false), 2000);
+    } catch {
+      handleDownloadMarkdown();
+    }
+  };
+
+  const handleDownloadMarkdown = () => {
+    const markdown = itemToObsidianMarkdown(activeItem, folders);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    downloadBlob(blob, getItemMarkdownFilename(activeItem));
   };
 
   const handlePopItem = () => {
@@ -301,19 +327,41 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
         </div>
 
         {/* Action button link */}
-        <div className="flex items-center justify-between p-2.5 bg-theme-card/35 rounded-xl border border-theme-border shrink-0">
-          <span className="text-[10px] font-mono text-theme-muted truncate max-w-[160px]">
-            {activeItem.url}
-          </span>
-          <a
-            href={activeItem.url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center space-x-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0"
-          >
-            <span>Open Original Link</span>
-            <ExternalLink size={10} />
-          </a>
+        <div className="space-y-2 p-2.5 bg-theme-card/35 rounded-xl border border-theme-border shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-mono text-theme-muted truncate min-w-0 flex-1">
+              {activeItem.url}
+            </span>
+            <a
+              href={activeItem.url}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center space-x-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0"
+            >
+              <span>Open Original Link</span>
+              <ExternalLink size={10} />
+            </a>
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-theme-border/60">
+            <button
+              type="button"
+              onClick={handleCopyMarkdown}
+              className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer"
+              title="Copy Obsidian Markdown"
+            >
+              {copiedMarkdown ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} className="text-theme-accent" />}
+              <span>{copiedMarkdown ? 'Copied .md' : 'Copy Obsidian .md'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadMarkdown}
+              className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer"
+              title="Download Obsidian Markdown file"
+            >
+              <Download size={10} className="text-theme-accent" />
+              <span>Save .md Note</span>
+            </button>
+          </div>
         </div>
 
         {isEditing ? (
