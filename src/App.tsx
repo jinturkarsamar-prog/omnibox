@@ -34,7 +34,32 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { BottomNavigation } from './components/BottomNavigation';
 import { BottomSheet } from './components/BottomSheet';
 import { ToastNotification, ToastMessage } from './components/ToastNotification';
-import { quickParseUrl } from './utils/quickParse';
+import { QuickShareOverlay } from './components/QuickShareOverlay';
+import { quickParseUrl, extractFirstUrl } from './utils/quickParse';
+
+const PENDING_ENRICH_KEY = 'omnibox_pending_enrichments';
+
+interface PendingEnrichment {
+  itemId: string;
+  url: string;
+}
+
+function readPendingEnrichments(): PendingEnrichment[] {
+  try {
+    const raw = localStorage.getItem(PENDING_ENRICH_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writePendingEnrichments(queue: PendingEnrichment[]) {
+  try {
+    localStorage.setItem(PENDING_ENRICH_KEY, JSON.stringify(queue.slice(-30)));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
 
 // =========================================================
 // INITIAL SEED DATA FOR FIRST RUN IMPACT
@@ -47,13 +72,33 @@ export default function App() {
   // =========================================================
   // CORE STORAGE SYNCHRONIZATION
   // =========================================================
-  const items = useLiveQuery(() => db.items.orderBy("createdAt").reverse().toArray()) || [];
+  const [isQuickShareMode, setIsQuickShareMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    return !!(
+      params.get('share_url') ||
+      params.get('url') ||
+      params.get('share_text') ||
+      params.get('text')
+    );
+  });
+
+  const items = useLiveQuery(
+    () => (isQuickShareMode ? Promise.resolve([] as SavedItem[]) : db.items.orderBy("createdAt").reverse().toArray()),
+    [isQuickShareMode]
+  ) || [];
 
   const folders = useLiveQuery(() => db.folders.toArray()) || [];
 
-  const tags = useLiveQuery(() => db.tags.toArray()) || [];
+  const tags = useLiveQuery(
+    () => (isQuickShareMode ? Promise.resolve([] as Tag[]) : db.tags.toArray()),
+    [isQuickShareMode]
+  ) || [];
 
-  const rules = useLiveQuery(() => db.rules.toArray()) || [];
+  const rules = useLiveQuery(
+    () => (isQuickShareMode ? Promise.resolve([] as AutoRule[]) : db.rules.toArray()),
+    [isQuickShareMode]
+  ) || [];
 
   // Navigation & Filter States
   const [activeSection, setActiveSection] = useState('all'); // 'all' | 'inbox' | 'trash' | 'folder-[id]'
@@ -128,8 +173,14 @@ export default function App() {
 
   // AI settings (Built-in, Custom, OpenAI, Ollama, LM Studio, or None)
   const [aiMode, setAiMode] = useState<'built-in' | 'custom' | 'openai' | 'ollama' | 'lm-studio' | 'none'>(() => {
-    return (localStorage.getItem('omnibox_ai_mode') as any) || 'lm-studio';
+    return (localStorage.getItem('omnibox_ai_mode') as any) || 'none';
   });
+  const [autoCloseOnShare, setAutoCloseOnShare] = useState<boolean>(() => {
+    return localStorage.getItem('omnibox_auto_close_share') !== 'false';
+  });
+  useEffect(() => {
+    localStorage.setItem('omnibox_auto_close_share', String(autoCloseOnShare));
+  }, [autoCloseOnShare]);
   const [customAiApiKey, setCustomAiApiKey] = useState<string>(() => {
     return localStorage.getItem('omnibox_custom_ai_api_key') || '';
   });
@@ -180,6 +231,8 @@ export default function App() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; item: SavedItem } | null>(null);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [quickShareItem, setQuickShareItem] = useState<SavedItem | null>(null);
+  const [quickShareAutoClose, setQuickShareAutoClose] = useState<boolean>(false);
   const [isWideScreen, setIsWideScreen] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth >= 1280;
@@ -195,11 +248,30 @@ export default function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const handleQuickShareTarget = async (targetUrl: string, shareTitle: string, shareText: string) => {
+  const createAndSaveQuickItem = async (
+    targetUrl: string,
+    shareTitle = '',
+    shareText = '',
+    options: { silentToast?: boolean } = {}
+  ): Promise<SavedItem> => {
+    const recentItems = await db.items.orderBy('createdAt').reverse().limit(10).toArray();
+    const fiveSecondsAgo = Date.now() - 5000;
+    const duplicate = recentItems.find(
+      (i) =>
+        i.deletedAt === null &&
+        i.url === targetUrl &&
+        new Date(i.createdAt).getTime() >= fiveSecondsAgo
+    );
+
+    if (duplicate) {
+      return duplicate;
+    }
+
     const parsed = quickParseUrl(targetUrl, shareTitle, shareText);
+    const activeRules = await db.rules.toArray();
 
     let newItem: SavedItem = {
-      id: `item-${Date.now()}`,
+      id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       header: parsed.header,
       note: parsed.note,
       tags: parsed.tags,
@@ -213,57 +285,94 @@ export default function App() {
       deletedAt: null,
     };
 
-    newItem = applyAutomationRulesOnItem(newItem);
+    newItem = applyAutomationRulesOnItem(newItem, activeRules);
 
     await db.items.put(newItem);
 
-    addToast({
-      id: `toast-${Date.now()}`,
-      type: 'quick-save',
-      title: `⚡ ${newItem.platform} ${newItem.format} Saved!`,
-      message: newItem.header,
-      actionText: 'View',
-      onAction: () => {
-        setSelectedItem(newItem);
-      },
-      onUndo: () => {
-        handleDeleteItem(newItem.id);
-      },
-    });
+    if (!options.silentToast) {
+      addToast({
+        id: `toast-${Date.now()}`,
+        type: 'quick-save',
+        title: `⚡ ${newItem.platform} ${newItem.format} Saved!`,
+        message: newItem.header,
+        actionText: 'View',
+        onAction: () => {
+          setSelectedItem(newItem);
+        },
+        onUndo: () => {
+          handleDeleteItem(newItem.id);
+        },
+      });
+    }
 
-    enrichItemInBackground(newItem.id, targetUrl);
+    void enrichItemInBackground(newItem.id, targetUrl, { silentToast: options.silentToast });
+    return newItem;
   };
 
-  // Handle Android/Mobile incoming web shares on mount
+  const handleQuickShareTarget = async (targetUrl: string, shareTitle: string, shareText: string) => {
+    const saved = await createAndSaveQuickItem(targetUrl, shareTitle, shareText, {
+      silentToast: true,
+    });
+    setQuickShareItem(saved);
+  };
+
+  // Handle Android/Mobile incoming web shares & pending background enrichments on mount
   useEffect(() => {
-    migrateFromLocalStorage();
+    let cancelled = false;
 
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const shareUrl = params.get('share_url') || params.get('url');
-      const shareText = params.get('share_text') || params.get('text');
-      const shareTitle = params.get('share_title') || params.get('title');
+    const initApp = async () => {
+      await migrateFromLocalStorage();
 
-      let targetUrl = '';
-      if (shareUrl) {
-        targetUrl = shareUrl;
-      } else if (shareText) {
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const match = shareText.match(urlRegex);
-        if (match) {
-          targetUrl = match[0];
-        } else {
-          targetUrl = shareText;
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const shareUrl = params.get('share_url') || params.get('url');
+        const shareText = params.get('share_text') || params.get('text');
+        const shareTitle = params.get('share_title') || params.get('title');
+        const forceAutoClose = params.get('auto_close') === '1';
+
+        let targetUrl = '';
+        if (shareUrl) {
+          targetUrl = shareUrl;
+        } else if (shareText) {
+          targetUrl = extractFirstUrl(shareText) || shareText;
+        }
+
+        if (targetUrl && !cancelled) {
+          setQuickShareAutoClose(forceAutoClose || autoCloseOnShare);
+          setIsQuickShareMode(true);
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+          await handleQuickShareTarget(targetUrl, shareTitle || '', shareText || '');
+          return;
         }
       }
 
-      if (targetUrl) {
-        handleQuickShareTarget(targetUrl, shareTitle || '', shareText || '');
+      // Retry any enrichments that didn't finish before a quick-share popup closed
+      const flushPending = () => {
+        const pending = readPendingEnrichments();
+        if (pending.length > 0 && !cancelled) {
+          for (const entry of pending) {
+            void enrichItemInBackground(entry.itemId, entry.url, { silentToast: true });
+          }
+        }
+      };
 
-        const cleanUrl = window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-      }
-    }
+      flushPending();
+      window.addEventListener('online', flushPending);
+      return () => {
+        window.removeEventListener('online', flushPending);
+      };
+    };
+
+    let cleanupOnline: (() => void) | undefined;
+    void initApp().then((cleanup) => {
+      if (typeof cleanup === 'function') cleanupOnline = cleanup;
+    });
+
+    return () => {
+      cancelled = true;
+      cleanupOnline?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -562,6 +671,34 @@ export default function App() {
     };
   }, [selectedItemIds]);
 
+  // Global Instant Paste-to-Save (Cmd/Ctrl+V anywhere outside inputs)
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      if (isQuickShareMode || showAddDialog || isCommandPaletteOpen) return;
+
+      const activeElement = document.activeElement;
+      const isInputActive = activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        activeElement.tagName === 'SELECT' ||
+        activeElement.getAttribute('contenteditable') === 'true'
+      );
+      if (isInputActive) return;
+
+      const pastedText = e.clipboardData?.getData('text/plain')?.trim();
+      if (!pastedText) return;
+
+      const extractedUrl = extractFirstUrl(pastedText);
+      if (!extractedUrl) return;
+
+      e.preventDefault();
+      void handleScrapeAndAddLink(extractedUrl);
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, [isQuickShareMode, showAddDialog, isCommandPaletteOpen]);
+
   const handleToggleSelectItem = (id: string, isMeta: boolean) => {
     setSelectedItemIds((prev) => {
       const isSelected = prev.includes(id);
@@ -617,10 +754,10 @@ export default function App() {
   };
 
   // Apply automation rules engine on a newly parsed saved item
-  const applyAutomationRulesOnItem = (item: SavedItem): SavedItem => {
+  const applyAutomationRulesOnItem = (item: SavedItem, activeRules: AutoRule[] = rules): SavedItem => {
     let modified = { ...item };
 
-    rules.forEach((rule) => {
+    activeRules.forEach((rule) => {
       let isTriggered = false;
       const targetVal = modified[rule.triggerField]?.toLowerCase() || '';
 
@@ -644,34 +781,101 @@ export default function App() {
     return modified;
   };
 
-  const enrichItemInBackground = async (itemId: string, targetUrl: string) => {
+  const fetchYouTubeOEmbedFallback = async (targetUrl: string): Promise<any | null> => {
+    const lower = targetUrl.toLowerCase();
+    if (!lower.includes('youtube.com') && !lower.includes('youtu.be')) return null;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
     try {
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          url: targetUrl,
-          aiMode,
-          customAiApiKey,
-          customAiApiUrl,
-          customAiModel,
-          aiCustomInstructions,
-          aiTemperature,
-          aiDefaultTags,
-          aiDefaultThumbnail,
-        }),
-      });
+      const res = await fetch(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(targetUrl)}&format=json`,
+        { signal: controller.signal }
+      );
+      clearTimeout(timer);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        title: data.title,
+        note: data.author_name ? `By ${data.author_name} on YouTube` : undefined,
+        previewUrl: data.thumbnail_url,
+      };
+    } catch {
+      clearTimeout(timer);
+      return null;
+    }
+  };
 
-      if (!response.ok) return;
+  const enrichItemInBackground = async (
+    itemId: string,
+    targetUrl: string,
+    options: { silentToast?: boolean } = {}
+  ) => {
+    const currentQueue = readPendingEnrichments();
+    if (!currentQueue.some((q) => q.itemId === itemId)) {
+      writePendingEnrichments([...currentQueue, { itemId, url: targetUrl }]);
+    }
 
-      const data = await response.json();
+    const removePending = () => {
+      writePendingEnrichments(readPendingEnrichments().filter((q) => q.itemId !== itemId));
+    };
+
+    try {
+      let data: any = null;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 6500);
+
+      try {
+        const response = await fetch('/api/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          signal: controller.signal,
+          body: JSON.stringify({
+            url: targetUrl,
+            aiMode,
+            customAiApiKey,
+            customAiApiUrl,
+            customAiModel,
+            aiCustomInstructions,
+            aiTemperature,
+            aiDefaultTags,
+            aiDefaultThumbnail,
+          }),
+        });
+        clearTimeout(timer);
+        if (response.ok) {
+          data = await response.json();
+        }
+      } catch {
+        clearTimeout(timer);
+      }
+
+      // Static PWA / offline-backend fallback for YouTube & Shorts
+      if (!data) {
+        data = await fetchYouTubeOEmbedFallback(targetUrl);
+      }
+
+      if (!data) {
+        return;
+      }
+
       const existingItem = await db.items.get(itemId);
-      if (!existingItem || existingItem.deletedAt) return;
+      if (!existingItem || existingItem.deletedAt) {
+        removePending();
+        return;
+      }
 
       const updatedItem: SavedItem = {
         ...existingItem,
-        header: (data.title && data.title !== 'Saved Web URL' && data.title !== 'Saved Link') ? data.title : existingItem.header,
-        note: (data.note && data.note !== 'Pasted Link' && data.note !== 'Saved on OmniBox') ? data.note : existingItem.note,
+        header:
+          data.title && data.title !== 'Saved Web URL' && data.title !== 'Saved Link'
+            ? data.title
+            : existingItem.header,
+        note:
+          data.note && data.note !== 'Pasted Link' && data.note !== 'Saved on OmniBox'
+            ? data.note
+            : existingItem.note,
         previewUrl: data.previewUrl || existingItem.previewUrl,
         tags: Array.from(new Set([...existingItem.tags, ...(data.tags || [])])),
         platform: data.platform || existingItem.platform,
@@ -681,13 +885,17 @@ export default function App() {
       };
 
       await db.items.put(updatedItem);
+      removePending();
+
+      setQuickShareItem((prev) => (prev && prev.id === updatedItem.id ? updatedItem : prev));
 
       if (updatedItem.tags.length > 0) {
+        const existingTags = await db.tags.toArray();
         const newTagsToInsert: Tag[] = [];
         updatedItem.tags.forEach((tagName) => {
-          if (!tags.some((t) => t.name.toLowerCase() === tagName.toLowerCase())) {
+          if (!existingTags.some((t) => t.name.toLowerCase() === tagName.toLowerCase())) {
             newTagsToInsert.push({
-              id: `tag-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              id: `tag-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
               name: tagName,
               color: '#3b82f6',
             });
@@ -698,17 +906,21 @@ export default function App() {
         }
       }
 
-      addToast({
-        id: `enrich-${Date.now()}`,
-        type: 'enriched',
-        title: `✨ AI Metadata Enriched`,
-        message: updatedItem.header,
-        actionText: 'View',
-        onAction: () => {
-          setSelectedItem(updatedItem);
-        },
-      });
-    } catch (err) {
+      const metadataImproved =
+        updatedItem.header !== existingItem.header || updatedItem.note !== existingItem.note;
+      if (!options.silentToast && metadataImproved) {
+        addToast({
+          id: `enrich-${Date.now()}`,
+          type: 'enriched',
+          title: `✨ Metadata Enriched`,
+          message: updatedItem.header,
+          actionText: 'View',
+          onAction: () => {
+            setSelectedItem(updatedItem);
+          },
+        });
+      }
+    } catch {
       console.log('[OmniBox] Background enrichment completed with fallback');
     }
   };
@@ -717,42 +929,7 @@ export default function App() {
   // ACTIONS: SAVED ITEMS PIPELINES
   // =========================================================
   const handleScrapeAndAddLink = async (targetUrl: string) => {
-    const parsed = quickParseUrl(targetUrl);
-
-    let newItem: SavedItem = {
-      id: `item-${Date.now()}`,
-      header: parsed.header,
-      note: parsed.note,
-      tags: parsed.tags,
-      previewUrl: parsed.previewUrl,
-      url: targetUrl,
-      platform: parsed.platform,
-      format: parsed.format,
-      brandColor: parsed.brandColor,
-      folderId: null,
-      createdAt: new Date().toISOString(),
-      deletedAt: null,
-    };
-
-    newItem = applyAutomationRulesOnItem(newItem);
-
-    await db.items.put(newItem);
-
-    addToast({
-      id: `toast-${Date.now()}`,
-      type: 'quick-save',
-      title: `⚡ ${newItem.platform} ${newItem.format} Saved!`,
-      message: newItem.header,
-      actionText: 'View',
-      onAction: () => {
-        setSelectedItem(newItem);
-      },
-      onUndo: () => {
-        handleDeleteItem(newItem.id);
-      },
-    });
-
-    enrichItemInBackground(newItem.id, targetUrl);
+    await createAndSaveQuickItem(targetUrl);
   };
 
   const handleSaveManualItem = async (manualData: any) => {
@@ -782,7 +959,7 @@ export default function App() {
   };
 
   const handleDeleteItem = async (id: string) => {
-    const item = items.find(i => i.id === id);
+    const item = items.find((i) => i.id === id) || (await db.items.get(id));
     if (item) {
       await db.items.put({ ...item, deletedAt: new Date().toISOString() });
     }
@@ -940,8 +1117,33 @@ export default function App() {
 
   const filteredItems = getFilteredItems();
 
-  const PLATFORM_CHIPS = ['All', 'YouTube', 'Music', 'Instagram', 'Threads', 'Pinterest'];
-  const FORMAT_CHIPS = ['All', 'Video', 'Image', 'Thread', 'Comment', 'Profile', 'Song', 'Playlist'];
+  const PLATFORM_CHIPS = ['All', 'YouTube', 'Instagram', 'TikTok', 'Music', 'Spotify', 'Threads', 'X / Twitter', 'Pinterest'];
+  const FORMAT_CHIPS = ['All', 'Video', 'Reel', 'Image', 'Post', 'Thread', 'Comment', 'Profile', 'Song', 'Audio', 'Playlist'];
+
+  if (isQuickShareMode) {
+    return (
+      <QuickShareOverlay
+        item={quickShareItem}
+        folders={folders}
+        autoCloseEnabled={quickShareAutoClose}
+        onAssignFolder={async (itemId, folderId) => {
+          const item = await db.items.get(itemId);
+          if (item) {
+            const updated = { ...item, folderId };
+            await db.items.put(updated);
+            setQuickShareItem(updated);
+          }
+        }}
+        onUndo={async (itemId) => {
+          await handleDeleteItem(itemId);
+        }}
+        onOpenLibrary={() => {
+          setIsQuickShareMode(false);
+          setActiveSection('inbox');
+        }}
+      />
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-theme-app font-sans antialiased text-theme-text transition-colors duration-200">
@@ -1089,6 +1291,8 @@ export default function App() {
               setAiDefaultTags={setAiDefaultTags}
               aiDefaultThumbnail={aiDefaultThumbnail}
               setAiDefaultThumbnail={setAiDefaultThumbnail}
+              autoCloseOnShare={autoCloseOnShare}
+              setAutoCloseOnShare={setAutoCloseOnShare}
             />
           ) : (
             // =========================================================

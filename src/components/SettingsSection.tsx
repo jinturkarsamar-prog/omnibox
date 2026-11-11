@@ -70,6 +70,8 @@ interface SettingsSectionProps {
   setAiDefaultTags: (tags: string) => void;
   aiDefaultThumbnail: string;
   setAiDefaultThumbnail: (thumb: string) => void;
+  autoCloseOnShare: boolean;
+  setAutoCloseOnShare: (v: boolean) => void;
 }
 
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
@@ -113,10 +115,13 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   setAiDefaultTags,
   aiDefaultThumbnail,
   setAiDefaultThumbnail,
+  autoCloseOnShare,
+  setAutoCloseOnShare,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [copiedBookmarklet, setCopiedBookmarklet] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'appearance' | 'ai' | 'system'>(() => {
     return (localStorage.getItem('omnibox_settings_active_tab') as any) || 'appearance';
@@ -1166,7 +1171,92 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
 
       {/* SYSTEM & DATA TAB CONTENT */}
       {activeTab === 'system' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in">
+          {/* Zero-Interruption Quick Capture Card */}
+          <div className="border border-theme-border bg-theme-sidebar rounded-xl p-5 space-y-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-theme-border pb-3">
+              <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider flex items-center space-x-2">
+                <Sparkles size={14} className="text-theme-accent" />
+                <span>Zero-Interruption Quick Capture</span>
+              </h2>
+              <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wider">
+                YouTube &amp; Instagram Reels Flow
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              <div className="space-y-2">
+                <div
+                  className="flex items-center cursor-pointer"
+                  onClick={() => setAutoCloseOnShare(!autoCloseOnShare)}
+                >
+                  <div
+                    className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 ease-in-out flex-shrink-0 ${
+                      autoCloseOnShare ? 'bg-theme-accent' : 'bg-black/30 border border-theme-border'
+                    }`}
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-full bg-white shadow-sm transform transition-transform duration-200 ease-in-out ${
+                        autoCloseOnShare ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                  <span className="ml-3 text-xs font-semibold text-theme-text">
+                    Auto-return to video after Share / Bookmarklet save
+                  </span>
+                </div>
+                <p className="text-[11px] text-theme-muted leading-relaxed">
+                  When sharing from YouTube/Instagram or using the bookmarklet, OmniBox saves in &lt;10ms and automatically closes the capture card so your video keeps playing.
+                </p>
+                <p className="text-[10px] text-theme-muted">
+                  Desktop tip: press <kbd className="px-1.5 py-0.5 rounded bg-theme-card border border-theme-border font-mono">Cmd/Ctrl+V</kbd> anywhere outside an input to save a copied URL with zero dialogs.
+                </p>
+              </div>
+
+              {/* 1-Click Bookmarklet Generator */}
+              <div className="bg-black/10 border border-theme-border rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-theme-muted">
+                    1-Click Browser Bookmarklet
+                  </span>
+                  <span className="text-[9px] text-theme-accent font-semibold">Drag to Bookmarks Bar</span>
+                </div>
+                {(() => {
+                  const baseUrl =
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}${window.location.pathname}`
+                      : 'https://localhost:3000/';
+                  const bookmarkletCode = `javascript:(function(){var u=encodeURIComponent(location.href),t=encodeURIComponent(document.title);window.open('${baseUrl}?share_url='+u+'&share_title='+t+'&auto_close=1','omnibox_quick_save','width=440,height=380,noopener');})();`;
+                  return (
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={bookmarkletCode}
+                        onClick={(e) => e.preventDefault()}
+                        draggable
+                        className="flex-1 text-center px-3 py-2 rounded-xl bg-theme-accent hover:bg-theme-hover text-white text-xs font-bold shadow-sm cursor-grab active:cursor-grabbing truncate"
+                        title="Drag this button to your browser bookmarks bar"
+                      >
+                        ⚡ Save to OmniBox
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(bookmarkletCode);
+                          setCopiedBookmarklet(true);
+                          setTimeout(() => setCopiedBookmarklet(false), 2000);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-theme-card border border-theme-border hover:border-theme-accent text-xs font-semibold text-theme-text transition cursor-pointer shrink-0"
+                      >
+                        {copiedBookmarklet ? 'Copied!' : 'Copy Code'}
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {/* Library Statistics */}
           <div className="border border-theme-border bg-theme-sidebar rounded-xl p-5 space-y-5 shadow-sm">
@@ -1296,6 +1386,7 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
             </div>
           </div>
 
+        </div>
         </div>
       )}
     </div>

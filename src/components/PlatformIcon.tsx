@@ -46,6 +46,12 @@ export const PlatformIcon: React.FC<PlatformIconProps> = ({
       return <Globe className={`text-blue-400 ${className}`} size={size} />;
     case 'Play Store':
       return <Gamepad2 className={`text-emerald-400 ${className}`} size={size} />;
+    case 'TikTok':
+      return <Play className={`text-cyan-400 ${className}`} size={size} />;
+    case 'Spotify':
+      return <Music className={`text-emerald-400 ${className}`} size={size} />;
+    case 'X / Twitter':
+      return <MessageCircle className={`text-sky-400 ${className}`} size={size} />;
     default:
       return <Bookmark className={`text-indigo-400 ${className}`} size={size} />;
   }
@@ -63,6 +69,10 @@ export const FormatIcon: React.FC<FormatIconProps> = ({
   size = 16,
 }) => {
   switch (format) {
+    case 'Reel':
+      return <Play className={`text-slate-300 ${className}`} size={size} />;
+    case 'Audio':
+      return <Music className={`text-slate-300 ${className}`} size={size} />;
     case 'Video':
       return <Play className={`text-slate-300 ${className}`} size={size} />;
     case 'Article':
@@ -110,6 +120,12 @@ export function getPlatformBadgeColor(platform: PlatformType): string {
       return 'bg-blue-950/40 text-blue-300 border border-blue-500/20';
     case 'Play Store':
       return 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/20';
+    case 'TikTok':
+      return 'bg-zinc-900/70 text-cyan-300 border border-cyan-500/20';
+    case 'Spotify':
+      return 'bg-emerald-950/50 text-emerald-300 border border-emerald-500/20';
+    case 'X / Twitter':
+      return 'bg-sky-950/50 text-sky-300 border border-sky-500/20';
     default:
       return 'bg-indigo-950/40 text-indigo-300 border border-indigo-500/20';
   }

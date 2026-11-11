@@ -11,11 +11,11 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Helper to extract YouTube video ID
+// Helper to extract YouTube video ID (supports watch, youtu.be, shorts, live, embed)
 function getYoutubeId(url: string): string | null {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const regExp = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/))([a-zA-Z0-9_-]{11})/;
   const match = url.match(regExp);
-  return match && match[2].length === 11 ? match[2] : null;
+  return match ? match[1] : null;
 }
 
 // Bypasses HTTP crawling for platforms that aggressively block scrapers and cause hangs.
@@ -25,6 +25,7 @@ function shouldBypassFetch(url: string): boolean {
     lower.includes('pinterest.com') ||
     lower.includes('pin.it') ||
     lower.includes('instagram.com') ||
+    lower.includes('instagr.am') ||
     lower.includes('tiktok.com') ||
     lower.includes('twitter.com') ||
     lower.includes('x.com') ||
@@ -33,16 +34,22 @@ function shouldBypassFetch(url: string): boolean {
   );
 }
 
-// Bulletproof fetch with an AbortController and strict 1500ms timeout
-async function fetchWithTimeout(url: string, timeoutMs = 1500): Promise<Response> {
+// Bulletproof fetch with an AbortController and strict timeout
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs = 1500,
+  options: RequestInit = {}
+): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
+      ...options,
       headers: {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
+        ...(options.headers || {}),
       },
       signal: controller.signal,
     });
@@ -133,25 +140,42 @@ function heuristicScrape(url: string): any {
       title = format === 'Playlist' ? 'Music Playlist' : 'Music Track';
     } else {
       platform = 'YouTube';
-      format = lowercaseUrl.includes('list=') ? 'Playlist' : 'Video';
+      const isShort = lowercaseUrl.includes('/shorts/');
+      format = isShort ? 'Reel' : lowercaseUrl.includes('list=') ? 'Playlist' : 'Video';
       brandColor = '#ff0000';
-      tags = [format === 'Playlist' ? 'Playlist' : 'Video', 'Inbox'];
-      title = format === 'Playlist' ? 'YouTube Playlist' : 'YouTube Video';
+      tags = [isShort ? 'Shorts' : format === 'Playlist' ? 'Playlist' : 'Video', 'YouTube', 'Inbox'];
+      title = isShort ? 'YouTube Short' : format === 'Playlist' ? 'YouTube Playlist' : 'YouTube Video';
       const ytId = getYoutubeId(url);
       if (ytId) {
         previewUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
-        if (format !== 'Playlist') {
-          title = `YouTube Video (${ytId})`;
-        }
       }
     }
-  } else if (lowercaseUrl.includes('instagram.com')) {
+  } else if (lowercaseUrl.includes('instagram.com') || lowercaseUrl.includes('instagr.am')) {
     platform = 'Instagram';
-    format = lowercaseUrl.includes('/reel/') || lowercaseUrl.includes('/reels/') ? 'Video' : 'Post';
+    const isReel = lowercaseUrl.includes('/reel/') || lowercaseUrl.includes('/reels/');
+    format = isReel ? 'Reel' : 'Post';
     brandColor = '#e1306c';
-    tags = ['Social', 'Inspo', 'Inbox'];
-    title = 'Instagram Post';
+    tags = [isReel ? 'Reels' : 'Social', 'Instagram', 'Inbox'];
+    title = isReel ? 'Instagram Reel' : 'Instagram Post';
     previewUrl = '';
+  } else if (lowercaseUrl.includes('tiktok.com')) {
+    platform = 'TikTok';
+    format = 'Reel';
+    brandColor = '#000000';
+    tags = ['TikTok', 'Reels', 'Inbox'];
+    title = 'TikTok Video';
+  } else if (lowercaseUrl.includes('spotify.com')) {
+    platform = 'Spotify';
+    format = 'Audio';
+    brandColor = '#1db954';
+    tags = ['Spotify', 'Audio', 'Inbox'];
+    title = 'Spotify Track';
+  } else if (lowercaseUrl.includes('twitter.com') || lowercaseUrl.includes('x.com')) {
+    platform = 'X / Twitter';
+    format = 'Post';
+    brandColor = '#1da1f2';
+    tags = ['Twitter', 'Post', 'Inbox'];
+    title = 'X / Twitter Post';
   } else if (lowercaseUrl.includes('pinterest.com') || lowercaseUrl.includes('pin.it')) {
     platform = 'Pinterest';
     format = 'Image';
@@ -247,87 +271,84 @@ app.post('/api/scrape', async (req, res) => {
   }
 
   // 2. Instagram and Pinterest custom high-fidelity scrapers (Bypasses standard LLM or provides enriched fallbacks)
-  const isInstagram = lowercaseUrl.includes('instagram.com');
+  const isInstagram = lowercaseUrl.includes('instagram.com') || lowercaseUrl.includes('instagr.am');
   if (isInstagram) {
     try {
-      console.log(`[OmniBox] Instagram URL detected: ${url}. Initiating high-fidelity vxinstagram scraper...`);
+      console.log(`[OmniBox] Instagram URL detected: ${url}. Initiating concurrent proxy scraper...`);
       const shortcodeMatch = url.match(/(?:\/p\/|\/reel\/|\/reels\/|\/tv\/)([^/?#&]+)/i);
       const shortcode = shortcodeMatch ? shortcodeMatch[1] : null;
+      const isReel = lowercaseUrl.includes('/reel/') || lowercaseUrl.includes('/reels/');
 
       if (shortcode) {
-        // Try multiple proxies for premium resilience!
         const proxyHosts = ['vxinstagram.com', 'ddinstagram.com'];
-        for (const host of proxyHosts) {
-          const proxyUrl = `https://${host}/p/${shortcode}/`;
-          console.log(`[OmniBox] Querying Instagram proxy helper: ${proxyUrl}`);
-          try {
-            const proxyRes = await fetch(proxyUrl, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
-                'Accept-Language': 'en-US,en;q=0.9',
-              },
-            });
-
-            if (proxyRes.ok) {
-              const proxyHtml = await proxyRes.text();
-              console.log(`[OmniBox] Successfully fetched Instagram proxy HTML from ${host}`);
-
-              let previewUrl = '';
-              const ogImageMatch = proxyHtml.match(/<meta[^>]+(?:property|name)="og:image"[^>]+content="([^"]+)"/i) ||
-                                   proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:image"/i) ||
-                                   proxyHtml.match(/<meta[^>]+(?:property|name)="twitter:image"[^>]+content="([^"]+)"/i) ||
-                                   proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="twitter:image"/i);
-              if (ogImageMatch && ogImageMatch[1]) {
-                previewUrl = ogImageMatch[1].replace(/&amp;/g, '&');
-              }
-
-              let title = 'Instagram Post';
-              const ogTitleMatch = proxyHtml.match(/<meta[^>]+(?:property|name)="og:title"[^>]+content="([^"]+)"/i) ||
-                                   proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:title"/i);
-              if (ogTitleMatch && ogTitleMatch[1]) {
-                title = ogTitleMatch[1].trim()
-                  .replace(/&quot;/g, '"')
-                  .replace(/&#39;/g, "'")
-                  .replace(/&amp;/g, '&')
-                  .replace(/\s+/g, ' ');
-              }
-
-              let note = 'View this post on Instagram.';
-              const ogDescMatch = proxyHtml.match(/<meta[^>]+(?:property|name)="og:description"[^>]+content="([^"]+)"/i) ||
-                                  proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:description"/i) ||
-                                  proxyHtml.match(/<meta[^>]+(?:property|name)="twitter:description"[^>]+content="([^"]+)"/i) ||
-                                  proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="twitter:description"/i);
-              
-              if (ogDescMatch && ogDescMatch[1]) {
-                note = ogDescMatch[1].trim()
-                  .replace(/&quot;/g, '"')
-                  .replace(/&#39;/g, "'")
-                  .replace(/&amp;/g, '&')
-                  .replace(/\s+/g, ' ');
-              }
-
-              if (previewUrl) {
-                console.log(`[OmniBox] Proxy ${host} succeeded! Image: ${previewUrl}`);
-                const isReel = lowercaseUrl.includes('/reel/') || lowercaseUrl.includes('/reels/');
-                return res.json({
-                  title: title.replace(/ - Instagram$/i, '').replace(/ \| Instagram$/i, ''),
-                  note,
-                  platform: 'Instagram',
-                  format: isReel ? 'Video' : 'Post',
-                  previewUrl,
-                  tags: ['Social', 'Inspo', 'Instagram'],
-                  brandColor: '#e1306c',
-                  quoteText: null
-                });
-              }
-            }
-          } catch (innerErr) {
-            console.error(`[OmniBox] Inner proxy fetch failed for ${host}:`, innerErr);
+        const fetchInstagramProxy = async (host: string) => {
+          const proxyUrl = `https://${host}/${isReel ? 'reel' : 'p'}/${shortcode}/`;
+          const proxyRes = await fetchWithTimeout(proxyUrl, 2500, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
+              'Accept-Language': 'en-US,en;q=0.9',
+            },
+          });
+          if (!proxyRes.ok) {
+            throw new Error(`${host} status ${proxyRes.status}`);
           }
-        }
+          const proxyHtml = await proxyRes.text();
+
+          let previewUrl = '';
+          const ogImageMatch = proxyHtml.match(/<meta[^>]+(?:property|name)="og:image"[^>]+content="([^"]+)"/i) ||
+                               proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:image"/i) ||
+                               proxyHtml.match(/<meta[^>]+(?:property|name)="twitter:image"[^>]+content="([^"]+)"/i) ||
+                               proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="twitter:image"/i);
+          if (ogImageMatch && ogImageMatch[1]) {
+            previewUrl = ogImageMatch[1].replace(/&amp;/g, '&');
+          }
+
+          let title = isReel ? 'Instagram Reel' : 'Instagram Post';
+          const ogTitleMatch = proxyHtml.match(/<meta[^>]+(?:property|name)="og:title"[^>]+content="([^"]+)"/i) ||
+                               proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:title"/i);
+          if (ogTitleMatch && ogTitleMatch[1]) {
+            title = ogTitleMatch[1].trim()
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&amp;/g, '&')
+              .replace(/\s+/g, ' ');
+          }
+
+          let note = 'View this post on Instagram.';
+          const ogDescMatch = proxyHtml.match(/<meta[^>]+(?:property|name)="og:description"[^>]+content="([^"]+)"/i) ||
+                              proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="og:description"/i) ||
+                              proxyHtml.match(/<meta[^>]+(?:property|name)="twitter:description"[^>]+content="([^"]+)"/i) ||
+                              proxyHtml.match(/<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="twitter:description"/i);
+          if (ogDescMatch && ogDescMatch[1]) {
+            note = ogDescMatch[1].trim()
+              .replace(/&quot;/g, '"')
+              .replace(/&#39;/g, "'")
+              .replace(/&amp;/g, '&')
+              .replace(/\s+/g, ' ');
+          }
+
+          if (!previewUrl) {
+            throw new Error(`${host} returned no preview image`);
+          }
+
+          return {
+            title: title.replace(/ - Instagram$/i, '').replace(/ \| Instagram$/i, ''),
+            note,
+            platform: 'Instagram',
+            format: isReel ? 'Reel' : 'Post',
+            previewUrl,
+            tags: [isReel ? 'Reels' : 'Social', 'Inspo', 'Instagram'],
+            brandColor: '#e1306c',
+            quoteText: null,
+          };
+        };
+
+        const result = await Promise.any(proxyHosts.map(fetchInstagramProxy));
+        console.log(`[OmniBox] Instagram concurrent proxy succeeded! Image: ${result.previewUrl}`);
+        return res.json(result);
       }
     } catch (err) {
-      console.error('[OmniBox] Instagram scraper failed:', err);
+      console.error('[OmniBox] Instagram scraper failed, falling back to heuristics:', err);
     }
   }
 
@@ -338,7 +359,7 @@ app.post('/api/scrape', async (req, res) => {
       let resolvedUrl = url;
       if (lowercaseUrl.includes('pin.it')) {
         try {
-          const redirectRes = await fetch(url, {
+          const redirectRes = await fetchWithTimeout(url, 1500, {
             method: 'HEAD',
             redirect: 'manual',
             headers: {
@@ -423,7 +444,7 @@ app.post('/api/scrape', async (req, res) => {
 
       // Fallback 2: General HTML scraping using Discord Social Bot User-Agent (highly robust for boards, profiles, or failed APIs!)
       console.log(`[OmniBox] Trying direct HTML scrape of Pinterest URL: ${resolvedUrl} with Social Bot User-Agent...`);
-      const pinPageRes = await fetch(resolvedUrl, {
+      const pinPageRes = await fetchWithTimeout(resolvedUrl, 2000, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
           'Accept-Language': 'en-US,en;q=0.9',
@@ -485,13 +506,33 @@ app.post('/api/scrape', async (req, res) => {
     }
   }
 
-  // 3. General scraping flow: Heuristic base, crawled metadata enrichment, and optional Gemini parsing
+  // 3. Fast YouTube oEmbed lookup + general scraping flow
   const fallback = heuristicScrape(url);
   let htmlContent = '';
   let enrichedMetadata: { title?: string; note?: string; previewUrl?: string } = {};
 
-  // Crawl website with timeout if not bypassed
-  if (!shouldBypassFetch(url)) {
+  const isYouTube = lowercaseUrl.includes('youtube.com') || lowercaseUrl.includes('youtu.be');
+  if (isYouTube) {
+    try {
+      const oembedRes = await fetchWithTimeout(
+        `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+        1800
+      );
+      if (oembedRes.ok) {
+        const oembed = await oembedRes.json();
+        if (oembed.title) enrichedMetadata.title = oembed.title;
+        if (oembed.author_name) enrichedMetadata.note = `By ${oembed.author_name} on YouTube`;
+        if (oembed.thumbnail_url && !fallback.previewUrl) {
+          enrichedMetadata.previewUrl = oembed.thumbnail_url;
+        }
+      }
+    } catch {
+      // Non-fatal; fallback to HTML crawl or heuristic
+    }
+  }
+
+  // Crawl website with timeout if not bypassed (skip heavy YouTube HTML when oEmbed already succeeded)
+  if (!shouldBypassFetch(url) && !(isYouTube && enrichedMetadata.title)) {
     try {
       console.log(`[OmniBox] Crawling URL: ${url}`);
       const response = await fetchWithTimeout(url, 1500);
@@ -660,7 +701,7 @@ ${htmlContent || 'No HTML context available (Direct URL inference needed)'}`;
         body.response_format = { type: 'json_object' };
       }
 
-      const openAiRes = await fetch(openAiEndpoint, {
+      const openAiRes = await fetchWithTimeout(openAiEndpoint, 8000, {
         method: 'POST',
         headers,
         body: JSON.stringify(body)

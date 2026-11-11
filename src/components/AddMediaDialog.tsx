@@ -12,9 +12,10 @@ import {
   Sparkles,
   Link as LinkIcon,
   Globe,
+  ClipboardPaste,
 } from 'lucide-react';
 import { PlatformType, FormatType, Folder, Tag } from '../types';
-import { quickParseUrl } from '../utils/quickParse';
+import { quickParseUrl, extractFirstUrl } from '../utils/quickParse';
 
 interface AddMediaDialogProps {
   folders: Folder[];
@@ -151,15 +152,22 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
     });
   };
 
-  const handleQuickSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!url.trim()) return;
+  const saveQuickUrl = (rawInput: string) => {
+    const cleanInput = rawInput.trim();
+    const targetUrl = extractFirstUrl(cleanInput) || cleanInput;
+    if (!targetUrl) return;
 
-    const parsed = quickParseUrl(url.trim(), header, note);
+    if (onScrape) {
+      onClose();
+      void onScrape(targetUrl);
+      return;
+    }
+
+    const parsed = quickParseUrl(targetUrl, header, note);
     onSave({
       header: header.trim() || parsed.header,
       note: note.trim() || parsed.note,
-      url: url.trim(),
+      url: targetUrl,
       platform: platform !== 'Other' ? platform : parsed.platform,
       format: format !== 'Website' ? format : parsed.format,
       previewUrl: previewUrl || parsed.previewUrl,
@@ -169,9 +177,30 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
       folderId,
     });
     onClose();
+  };
 
-    if (onScrape) {
-      onScrape(url.trim());
+  const handleQuickSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    saveQuickUrl(url);
+  };
+
+  const handlePasteAndSave = async () => {
+    setScrapeError(null);
+    try {
+      if (!navigator.clipboard?.readText) {
+        setScrapeError('Clipboard access unavailable. Paste into the box above instead.');
+        return;
+      }
+      const clipText = (await navigator.clipboard.readText()).trim();
+      const extracted = extractFirstUrl(clipText);
+      if (!extracted) {
+        setScrapeError('No valid http(s) URL found in your clipboard.');
+        return;
+      }
+      saveQuickUrl(extracted);
+    } catch {
+      setScrapeError('Clipboard permission denied. Paste manually into the box above.');
     }
   };
 
@@ -221,7 +250,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
         {!isExpanded ? (
           <form onSubmit={handleQuickSubmit} className="flex-1 p-6 space-y-4 overflow-y-auto">
             <p className="text-xs text-theme-muted">
-              OmniBox will parse the link and retrieve custom visuals automatically.
+              Saves instantly (&lt;5ms) and enriches title &amp; thumbnail silently in the background. Tip: press <kbd className="px-1.5 py-0.5 rounded bg-theme-card border border-theme-border font-mono text-[10px]">Cmd/Ctrl+V</kbd> anywhere in the app to instant-save!
             </p>
             <div className="flex flex-col sm:flex-row gap-2 mt-2">
               <div className="relative flex-1 w-full">
@@ -230,6 +259,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 </div>
                 <input
                   type="url"
+                  autoFocus
                   placeholder="Paste YouTube, Instagram, Pinterest, Threads or Web URL here..."
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
@@ -239,9 +269,19 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 />
               </div>
               <button
+                type="button"
+                onClick={handlePasteAndSave}
+                disabled={isScraping}
+                title="Read URL from clipboard and save in 1 tap"
+                className="bg-theme-card hover:bg-theme-sidebar border border-theme-border text-theme-text font-semibold px-4 py-3 rounded-xl text-sm transition flex items-center justify-center space-x-1.5 w-full sm:w-auto shrink-0 cursor-pointer"
+              >
+                <ClipboardPaste size={16} className="text-theme-accent" />
+                <span>Paste &amp; Save</span>
+              </button>
+              <button
                 type="submit"
                 disabled={isScraping}
-                className="bg-theme-accent hover:bg-theme-hover disabled:opacity-50 text-white font-semibold px-6 py-3 rounded-xl text-sm transition flex items-center justify-center space-x-1.5 w-full sm:w-auto shrink-0 shadow-md"
+                className="bg-theme-accent hover:bg-theme-hover disabled:opacity-50 text-white font-semibold px-6 py-3 rounded-xl text-sm transition flex items-center justify-center space-x-1.5 w-full sm:w-auto shrink-0 shadow-md cursor-pointer"
               >
                 {isScraping ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-xl animate-spin" />
@@ -318,8 +358,11 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 <option value="YouTube">YouTube</option>
                 <option value="Music">Music</option>
                 <option value="Instagram">Instagram</option>
+                <option value="TikTok">TikTok</option>
                 <option value="Threads">Threads</option>
+                <option value="X / Twitter">X / Twitter</option>
                 <option value="Pinterest">Pinterest</option>
+                <option value="Spotify">Spotify</option>
                 <option value="Google">Google Articles / Sites</option>
                 <option value="Play Store">Play Store</option>
               </select>
@@ -334,12 +377,14 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
               >
                 <option value="Website">Website</option>
                 <option value="Video">Video</option>
+                <option value="Reel">Reel / Short</option>
                 <option value="Image">Image</option>
                 <option value="Post">Social Post</option>
                 <option value="Thread">Conversation Thread</option>
                 <option value="Comment">Platform Comment</option>
                 <option value="Profile">Profile / Channel</option>
                 <option value="Song">Song / Audio</option>
+                <option value="Audio">Audio</option>
                 <option value="Playlist">Playlist</option>
                 <option value="Artist">Artist Bio</option>
                 <option value="App">App / Utility</option>

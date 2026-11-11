@@ -1,10 +1,16 @@
 import { PlatformType, FormatType, SavedItem } from '../types';
 
-// Helper to extract YouTube video ID instantly
+// Helper to extract YouTube video ID instantly (supports watch, youtu.be, shorts, live, embed)
 export function getYoutubeId(url: string): string | null {
-  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+  const regExp = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|v\/|shorts\/|live\/))([a-zA-Z0-9_-]{11})/;
   const match = url.match(regExp);
-  return match && match[2].length === 11 ? match[2] : null;
+  return match ? match[1] : null;
+}
+
+// Extract the first http(s) URL from pasted/shared text
+export function extractFirstUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/[^\s<>"']+/i);
+  return match ? match[0] : null;
 }
 
 // Clean and extract human title/caption from shared text or URL
@@ -67,11 +73,8 @@ export function quickParseUrl(targetUrl: string, shareTitle?: string, shareText?
       previewUrl = 'https://images.unsplash.com/photo-1611262588024-d12430b98920?w=800&q=80';
     }
   } 
-  // 2. YouTube & Shorts
+  // 2. YouTube, YouTube Shorts & YouTube Music
   else if (lowerUrl.includes('youtube.com') || lowerUrl.includes('youtu.be')) {
-    platform = 'YouTube';
-    brandColor = '#FF0000';
-
     const ytId = getYoutubeId(targetUrl);
     if (ytId) {
       previewUrl = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
@@ -79,14 +82,35 @@ export function quickParseUrl(targetUrl: string, shareTitle?: string, shareText?
       previewUrl = 'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=800&q=80';
     }
 
-    if (lowerUrl.includes('/shorts/')) {
-      format = 'Reel';
-      header = extractedTitle || 'YouTube Short';
-      tags = ['YouTube', 'Shorts', 'Inbox'];
+    if (lowerUrl.includes('music.youtube.com')) {
+      platform = 'Music';
+      brandColor = '#FF0000';
+      if (lowerUrl.includes('list=')) {
+        format = 'Playlist';
+        header = extractedTitle || 'YouTube Music Playlist';
+        tags = ['Music', 'Playlist', 'Inbox'];
+      } else {
+        format = 'Song';
+        header = extractedTitle || 'YouTube Music Track';
+        tags = ['Music', 'Song', 'Inbox'];
+      }
     } else {
-      format = 'Video';
-      header = extractedTitle || 'YouTube Video';
-      tags = ['YouTube', 'Video', 'Inbox'];
+      platform = 'YouTube';
+      brandColor = '#FF0000';
+
+      if (lowerUrl.includes('/shorts/')) {
+        format = 'Reel';
+        header = extractedTitle || 'YouTube Short';
+        tags = ['YouTube', 'Shorts', 'Inbox'];
+      } else if (lowerUrl.includes('list=') && !ytId) {
+        format = 'Playlist';
+        header = extractedTitle || 'YouTube Playlist';
+        tags = ['YouTube', 'Playlist', 'Inbox'];
+      } else {
+        format = 'Video';
+        header = extractedTitle || 'YouTube Video';
+        tags = ['YouTube', 'Video', 'Inbox'];
+      }
     }
   } 
   // 3. TikTok
