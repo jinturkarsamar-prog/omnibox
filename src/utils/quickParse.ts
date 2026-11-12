@@ -271,7 +271,7 @@ export function isExternalHttpUrl(url?: string | null): boolean {
 const CHAPTER_PROGRESS_REGEX = /\b(chapter|chap|ch\.?|episode|ep\.?)\s*(\d+)\b/i;
 
 /**
- * Extracts a chapter/episode progress marker (e.g. "Chapter 349", "Ch. 12") from a title.
+ * Extracts a chapter/episode progress marker (e.g. "Chapter 24", "Ch. 12") from a title.
  */
 export function extractChapterInfo(title: string): { label: string; number: number } | null {
   const match = CHAPTER_PROGRESS_REGEX.exec(title);

@@ -322,7 +322,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
         {!isExpanded && entryMode === 'note' ? (
           <form onSubmit={handleQuickNoteSubmit} className="flex-1 p-5 sm:p-6 space-y-4 overflow-y-auto">
             <p className="text-xs text-theme-muted">
-              Save a text-only entry (like <span className="text-theme-text font-medium">All Hail the Sect Leader Chapter 349</span>) without any video embed or link required.
+              Save a text-only entry with optional chapter/episode progress without any video embed or link required.
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
@@ -333,7 +333,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 <input
                   type="text"
                   autoFocus
-                  placeholder="e.g. All Hail the Sect Leader"
+                  placeholder="e.g. Series or Topic Name"
                   value={header}
                   onChange={(e) => setHeader(e.target.value)}
                   className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
@@ -347,7 +347,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. 349 or Ep 12"
+                  placeholder="e.g. 24 or Ep 12"
                   value={chapterInput}
                   onChange={(e) => setChapterInput(e.target.value)}
                   className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
