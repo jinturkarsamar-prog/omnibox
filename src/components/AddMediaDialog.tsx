@@ -16,7 +16,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { PlatformType, FormatType, Folder, Tag } from '../types';
-import { quickParseUrl, extractFirstUrl } from '../utils/quickParse';
+import { quickParseUrl, extractFirstUrl, formatSeriesWithChapter } from '../utils/quickParse';
 import { useBackHandler } from '../utils/backNavigation';
 
 interface AddMediaDialogProps {
@@ -65,6 +65,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
   const [scrapeError, setScrapeError] = useState<string | null>(null);
 
   const [header, setHeader] = useState(prefillData?.header || '');
+  const [chapterInput, setChapterInput] = useState('');
   const [note, setNote] = useState(prefillData?.note || '');
   const [url, setUrl] = useState(prefillData?.url || '');
   const [platform, setPlatform] = useState<PlatformType>('Other');
@@ -169,9 +170,10 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
 
     const cleanOptionalUrl = url.trim();
     const parsedUrl = cleanOptionalUrl ? quickParseUrl(cleanOptionalUrl) : null;
+    const formattedHeader = formatSeriesWithChapter(header, chapterInput);
 
     onSave({
-      header: header.trim(),
+      header: formattedHeader,
       note: note.trim(),
       url: cleanOptionalUrl,
       platform: parsedUrl ? parsedUrl.platform : 'Other',
@@ -323,19 +325,34 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
               Save a text-only entry (like <span className="text-theme-text font-medium">All Hail the Sect Leader Chapter 349</span>) without any video embed or link required.
             </p>
 
-            <div>
-              <label className="block text-xs font-semibold text-theme-muted mb-1">
-                Title / Series &amp; Chapter *
-              </label>
-              <input
-                type="text"
-                autoFocus
-                placeholder="e.g. All Hail the Sect Leader Chapter 349"
-                value={header}
-                onChange={(e) => setHeader(e.target.value)}
-                className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
-                required
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              <div className="sm:col-span-8">
+                <label className="block text-xs font-semibold text-theme-muted mb-1">
+                  Name / Series *
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. All Hail the Sect Leader"
+                  value={header}
+                  onChange={(e) => setHeader(e.target.value)}
+                  className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
+                  required
+                />
+              </div>
+
+              <div className="sm:col-span-4">
+                <label className="block text-xs font-semibold text-theme-muted mb-1">
+                  Chap / Ep
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 349 or Ep 12"
+                  value={chapterInput}
+                  onChange={(e) => setChapterInput(e.target.value)}
+                  className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
+                />
+              </div>
             </div>
 
             <div>

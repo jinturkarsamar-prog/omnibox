@@ -282,16 +282,36 @@ export function extractChapterInfo(title: string): { label: string; number: numb
 }
 
 /**
+ * Sets a specific chapter/episode number in a title containing a chapter marker.
+ */
+export function setChapterInTitle(title: string, nextValue: number): string | null {
+  const match = CHAPTER_PROGRESS_REGEX.exec(title);
+  if (!match || !Number.isFinite(nextValue)) return null;
+  const clamped = Math.max(0, Math.floor(nextValue));
+  const start = match.index;
+  const full = match[0];
+  const updated = full.replace(match[2], String(clamped));
+  return title.slice(0, start) + updated + title.slice(start + full.length);
+}
+
+/**
  * Returns an updated title with its chapter/episode number incremented/decremented, or null if none found.
  */
 export function bumpChapterInTitle(title: string, delta: number): string | null {
-  const match = CHAPTER_PROGRESS_REGEX.exec(title);
-  if (!match) return null;
-  const current = Number.parseInt(match[2], 10);
-  if (!Number.isFinite(current)) return null;
-  const next = Math.max(0, current + delta);
-  const start = match.index;
-  const full = match[0];
-  const updated = full.replace(match[2], String(next));
-  return title.slice(0, start) + updated + title.slice(start + full.length);
+  const info = extractChapterInfo(title);
+  if (!info) return null;
+  return setChapterInTitle(title, info.number + delta);
+}
+
+/**
+ * Combines a series name and optional chapter/episode input into a clean tracker title.
+ */
+export function formatSeriesWithChapter(name: string, chapterInput: string): string {
+  const cleanName = name.trim();
+  const cleanChap = chapterInput.trim();
+  if (!cleanChap) return cleanName;
+  if (/^\d+$/.test(cleanChap)) {
+    return `${cleanName} Chapter ${cleanChap}`;
+  }
+  return `${cleanName} ${cleanChap}`;
 }

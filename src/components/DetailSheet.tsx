@@ -27,7 +27,8 @@ import {
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
 import { getYouTubeVideoId } from '../utils/youtube';
-import { bumpChapterInTitle, extractChapterInfo, isExternalHttpUrl } from '../utils/quickParse';
+import { isExternalHttpUrl } from '../utils/quickParse';
+import { ChapterProgressStepper } from './ChapterProgressStepper';
 
 interface DetailSheetProps {
   item: SavedItem;
@@ -446,47 +447,14 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                     <h2 className="text-xl md:text-2xl font-semibold text-theme-text tracking-tight">
                       {activeItem.header}
                     </h2>
-                    {(() => {
-                      const chapter = extractChapterInfo(activeItem.header);
-                      if (!chapter) return null;
-                      return (
-                        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-theme-card border border-theme-border text-xs">
-                          <span className="text-theme-muted font-medium">
-                            {chapter.label} <strong className="text-theme-text">{chapter.number}</strong>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextHeader = bumpChapterInTitle(activeItem.header, -1);
-                              if (nextHeader) {
-                                const updated = { ...activeItem, header: nextHeader };
-                                onUpdateItem(updated);
-                                setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
-                              }
-                            }}
-                            className="px-2 py-0.5 rounded-lg bg-theme-sidebar border border-theme-border hover:border-theme-accent text-theme-text font-semibold cursor-pointer"
-                            title="Previous chapter"
-                          >
-                            -1
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const nextHeader = bumpChapterInTitle(activeItem.header, 1);
-                              if (nextHeader) {
-                                const updated = { ...activeItem, header: nextHeader };
-                                onUpdateItem(updated);
-                                setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
-                              }
-                            }}
-                            className="px-2 py-0.5 rounded-lg bg-theme-accent/20 border border-theme-accent/40 hover:bg-theme-accent/30 text-theme-accent font-semibold cursor-pointer"
-                            title="Next chapter"
-                          >
-                            +1
-                          </button>
-                        </div>
-                      );
-                    })()}
+                    <ChapterProgressStepper
+                      title={activeItem.header}
+                      onChangeTitle={(nextHeader) => {
+                        const updated = { ...activeItem, header: nextHeader };
+                        onUpdateItem(updated);
+                        setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+                      }}
+                    />
                   </div>
 
                   {activeItem.note && (
