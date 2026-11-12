@@ -30,6 +30,7 @@ import {
   buildObsidianVaultZip,
   downloadBlob,
   libraryToSingleObsidianMarkdown,
+  selectObsidianExportItems,
 } from '../utils/obsidianExport';
 
 interface SettingsSectionProps {
@@ -55,6 +56,8 @@ interface SettingsSectionProps {
   onDeleteRule: (id: string) => void;
   onResetData: () => void;
   onImportData: (data: { items: SavedItem[]; folders: Folder[]; tags: Tag[]; rules: AutoRule[] }) => void;
+  onMarkExportedToGoko?: (ids: string[]) => void;
+  onResetGokoExports?: () => void;
   activeThemeId: string;
   setActiveThemeId: (id: string) => void;
   customThemes: ThemeConfig[];
@@ -86,6 +89,8 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
   onDeleteRule,
   onResetData,
   onImportData,
+  onMarkExportedToGoko,
+  onResetGokoExports,
   activeThemeId,
   setActiveThemeId,
   customThemes,
@@ -226,23 +231,28 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
     downloadBlob(blob, `omnibox-backup-with-themes-${new Date().toISOString().split('T')[0]}.json`);
   };
 
-  const handleExportObsidianZip = (scope: 'all' | 'inbox' = 'all') => {
-    const targetItems = items.filter((item) => {
-      if (item.deletedAt) return false;
-      return scope === 'inbox' ? item.folderId === null : true;
-    });
+  const unsentCount = selectObsidianExportItems(items, { scope: 'all', onlyUnsent: true }).length;
+  const unsentInboxCount = selectObsidianExportItems(items, { scope: 'inbox', onlyUnsent: true }).length;
+  const exportedCount = items.filter((item) => !item.deletedAt && Boolean(item.exportedToGokoAt)).length;
+
+  const handleExportObsidianZip = (scope: 'all' | 'inbox' = 'all', onlyUnsent = false) => {
+    const targetItems = selectObsidianExportItems(items, { scope, onlyUnsent });
     if (targetItems.length === 0) {
-      setObsidianStatus(scope === 'inbox' ? 'Your Inbox queue is empty.' : 'No active items to export.');
+      setObsidianStatus(
+        onlyUnsent
+          ? 'Everything has already been exported to Goko.'
+          : scope === 'inbox'
+            ? 'Your Inbox queue is empty.'
+            : 'No active items to export.'
+      );
       setTimeout(() => setObsidianStatus(null), 3500);
       return;
     }
-    const zipBlob = buildObsidianVaultZip(items, folders, { scope, clippingsFolder: 'Clippings' });
+    const zipBlob = buildObsidianVaultZip(items, folders, { scope, onlyUnsent, clippingsFolder: 'Clippings' });
     const dateStr = new Date().toISOString().split('T')[0];
-    const filename =
-      scope === 'inbox'
-        ? `omnibox-goko-inbox-${dateStr}.zip`
-        : `omnibox-goko-vault-${dateStr}.zip`;
-    downloadBlob(zipBlob, filename);
+    const suffix = onlyUnsent ? 'new' : scope;
+    downloadBlob(zipBlob, `omnibox-goko-${suffix}-${dateStr}.zip`);
+    onMarkExportedToGoko?.(targetItems.map((item) => item.id));
     setObsidianStatus(
       `Exported ${targetItems.length} Goko clipping${targetItems.length === 1 ? '' : 's'} into Clippings/ (.zip).`
     );
@@ -1022,19 +1032,28 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                   <span className="text-xs font-semibold text-theme-text">Transfer to Goko / Obsidian (.md)</span>
                   <span className="text-[11px] text-theme-muted">Exports into <code className="font-mono">Clippings/</code></span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <button
                     type="button"
-                    onClick={() => handleExportObsidianZip('inbox')}
+                    onClick={() => handleExportObsidianZip('all', true)}
                     className="flex items-center justify-center space-x-2 bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent py-2.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
-                    title="Export only Inbox quick links for Goko"
+                    title="Export only items not yet transferred to Goko"
                   >
                     <Archive size={14} className="shrink-0" />
-                    <span>Inbox → Goko (.zip)</span>
+                    <span>Export New Only ({unsentCount})</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleExportObsidianZip('all')}
+                    onClick={() => handleExportObsidianZip('inbox', true)}
+                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    title="Export only unsent Inbox quick links for Goko"
+                  >
+                    <Archive size={14} className="text-theme-accent shrink-0" />
+                    <span>Inbox New ({unsentInboxCount})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExportObsidianZip('all', false)}
                     className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
                     title="Export full active library into Clippings/ (.zip)"
                   >
@@ -1050,9 +1069,24 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                     <span>Single Note (.md)</span>
                   </button>
                 </div>
-                <p className="text-[11px] text-theme-muted leading-relaxed">
-                  Unzip into your Obsidian vault root. Notes include <code className="font-mono">source:</code> URLs, timestamps, and <code className="font-mono">categories:</code> so Goko auto-archives covers, videos, and domain rules.
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-theme-muted leading-relaxed">
+                  <span>
+                    Unzip into your vault root. Exported items are marked automatically so future exports skip duplicates.
+                  </span>
+                  {exportedCount > 0 && onResetGokoExports && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onResetGokoExports();
+                        setObsidianStatus(`Cleared Goko export marks on ${exportedCount} item${exportedCount === 1 ? '' : 's'}.`);
+                        setTimeout(() => setObsidianStatus(null), 3500);
+                      }}
+                      className="text-theme-accent hover:underline font-medium cursor-pointer shrink-0"
+                    >
+                      Reset marks ({exportedCount})
+                    </button>
+                  )}
+                </div>
                 {obsidianStatus && (
                   <div className="flex items-center space-x-2 p-2.5 bg-emerald-950/20 border border-emerald-900/30 text-emerald-400 rounded-xl text-xs">
                     <Check size={14} className="shrink-0" />

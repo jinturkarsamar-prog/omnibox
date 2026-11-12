@@ -1138,6 +1138,29 @@ export default function App() {
     }
   };
 
+  const handleMarkExportedToGoko = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const nowStr = new Date().toISOString();
+    const idSet = new Set(ids);
+    const itemsToUpdate = items
+      .filter((item) => idSet.has(item.id))
+      .map((item) => ({ ...item, exportedToGokoAt: nowStr }));
+    if (itemsToUpdate.length > 0) {
+      await db.items.bulkPut(itemsToUpdate);
+      setSelectedItem((prev) => (prev && idSet.has(prev.id) ? { ...prev, exportedToGokoAt: nowStr } : prev));
+    }
+  };
+
+  const handleResetGokoExports = async () => {
+    const itemsToUpdate = items
+      .filter((item) => Boolean(item.exportedToGokoAt))
+      .map((item) => ({ ...item, exportedToGokoAt: null }));
+    if (itemsToUpdate.length > 0) {
+      await db.items.bulkPut(itemsToUpdate);
+      setSelectedItem((prev) => (prev ? { ...prev, exportedToGokoAt: null } : prev));
+    }
+  };
+
   // Trash actions
   const handleRestoreItem = async (id: string) => {
     const item = items.find((i) => i.id === id);
@@ -1380,6 +1403,7 @@ export default function App() {
               onMoveItemsToFolder={handleMassMove}
               onAssignTagsToItems={handleMassTag}
               onDeleteItems={handleMassDelete}
+              onMarkExportedToGoko={handleMarkExportedToGoko}
               onContextMenu={handleContextMenu}
               onSwipeRightItem={(item) => {
                 setSwipeActiveItem(item);
@@ -1426,6 +1450,8 @@ export default function App() {
               onDeleteRule={handleDeleteRule}
               onResetData={handleResetData}
               onImportData={handleImportData}
+              onMarkExportedToGoko={handleMarkExportedToGoko}
+              onResetGokoExports={handleResetGokoExports}
               activeThemeId={activeThemeId}
               setActiveThemeId={setActiveThemeId}
               customThemes={customThemes}
@@ -1670,6 +1696,7 @@ export default function App() {
           onTagClick={handleTagClick}
           onDeleteItem={handleDeleteItem}
           onMaximize={() => setShowFullDetailSheet(true)}
+          onMarkExportedToGoko={handleMarkExportedToGoko}
         />
       )}
 
@@ -1685,6 +1712,7 @@ export default function App() {
           onUpdateItem={handleUpdateItem}
           onTagClick={handleTagClick}
           onDeleteItem={handleDeleteItem}
+          onMarkExportedToGoko={handleMarkExportedToGoko}
         />
       )}
 
@@ -1757,6 +1785,7 @@ export default function App() {
                 const zipBlob = buildObsidianVaultZip(chosen, folders);
                 const dateStr = new Date().toISOString().split('T')[0];
                 downloadBlob(zipBlob, `omnibox-goko-selected-${dateStr}.zip`);
+                void handleMarkExportedToGoko(chosen.map((item) => item.id));
                 addToast({
                   id: `goko-export-${Date.now()}`,
                   type: 'info',
@@ -1835,7 +1864,10 @@ export default function App() {
                   </a>
                   <a
                     href={getGokoClipUri(quickActionItem.url)}
-                    onClick={() => setQuickActionItem(null)}
+                    onClick={() => {
+                      void handleMarkExportedToGoko([quickActionItem.id]);
+                      setQuickActionItem(null);
+                    }}
                     className="flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-xs font-semibold text-theme-accent"
                   >
                     <Send size={14} />
@@ -2111,6 +2143,7 @@ export default function App() {
           onDeleteItems={handleMassDelete}
           onRestoreItems={handleMassRestore}
           onPermanentDelete={handleMassPermanentDelete}
+          onMarkExportedToGoko={handleMarkExportedToGoko}
         />
       )}
 

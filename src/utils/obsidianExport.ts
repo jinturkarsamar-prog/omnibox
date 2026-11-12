@@ -369,7 +369,24 @@ export function createZipBlob(files: Array<{ path: string; content: string }>): 
 
 export interface ObsidianVaultZipOptions {
   scope?: 'all' | 'inbox';
+  onlyUnsent?: boolean;
   clippingsFolder?: string;
+}
+
+/**
+ * Selects non-deleted items eligible for Goko/Obsidian export based on scope and unsent filter.
+ */
+export function selectObsidianExportItems(
+  items: SavedItem[],
+  options: Pick<ObsidianVaultZipOptions, 'scope' | 'onlyUnsent'> = {}
+): SavedItem[] {
+  const { scope = 'all', onlyUnsent = false } = options;
+  return items.filter((item) => {
+    if (item.deletedAt) return false;
+    if (scope === 'inbox' && item.folderId !== null) return false;
+    if (onlyUnsent && item.exportedToGokoAt) return false;
+    return true;
+  });
 }
 
 /**
@@ -380,12 +397,9 @@ export function buildObsidianVaultZip(
   folders: Folder[],
   options: ObsidianVaultZipOptions = {}
 ): Blob {
-  const { scope = 'all', clippingsFolder = 'Clippings' } = options;
+  const { scope = 'all', onlyUnsent = false, clippingsFolder = 'Clippings' } = options;
   const rootFolder = sanitizeObsidianName(clippingsFolder, 'Clippings');
-  const exportItems = items.filter((item) => {
-    if (item.deletedAt) return false;
-    return scope === 'inbox' ? item.folderId === null : true;
-  });
+  const exportItems = selectObsidianExportItems(items, { scope, onlyUnsent });
 
   const usedPaths = new Set<string>();
   const files: Array<{ path: string; content: string }> = [];

@@ -40,6 +40,7 @@ interface DetailSheetProps {
   onUpdateItem: (updated: SavedItem) => void;
   onTagClick?: (tagName: string) => void;
   onDeleteItem: (id: string) => void;
+  onMarkExportedToGoko?: (ids: string[]) => void;
 }
 
 export const DetailSheet: React.FC<DetailSheetProps> = ({
@@ -52,6 +53,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
   onUpdateItem,
   onTagClick,
   onDeleteItem,
+  onMarkExportedToGoko,
 }) => {
   // Navigation stack for recommendations deep browsing
   const [historyStack, setHistoryStack] = useState<SavedItem[]>([initialItem]);
@@ -109,6 +111,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
     const markdown = itemToObsidianMarkdown(activeItem, folders);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     downloadBlob(blob, getItemMarkdownFilename(activeItem));
+    onMarkExportedToGoko?.([activeItem.id]);
   };
 
   // Push recommendation onto history stack
@@ -274,6 +277,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                   {isExternalHttpUrl(activeItem.url) && (
                     <a
                       href={getGokoClipUri(activeItem.url)}
+                      onClick={() => onMarkExportedToGoko?.([activeItem.id])}
                       className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent transition cursor-pointer flex-1 sm:flex-initial"
                       title="Open in Obsidian Goko on Mac to archive permanently"
                     >
@@ -443,6 +447,11 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                       <span className="text-[10px] font-semibold text-theme-muted uppercase tracking-widest">
                         {activeItem.format}
                       </span>
+                      {activeItem.exportedToGokoAt && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                          In Goko ✓
+                        </span>
+                      )}
                     </div>
                     <h2 className="text-xl md:text-2xl font-semibold text-theme-text tracking-tight">
                       {activeItem.header}

@@ -40,6 +40,7 @@ interface InspectorPanelProps {
   onTagClick?: (tagName: string) => void;
   onDeleteItem: (id: string) => void;
   onMaximize?: () => void;
+  onMarkExportedToGoko?: (ids: string[]) => void;
 }
 
 export const InspectorPanel: React.FC<InspectorPanelProps> = ({
@@ -53,6 +54,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
   onTagClick,
   onDeleteItem,
   onMaximize,
+  onMarkExportedToGoko,
 }) => {
   // Navigation stack for deep recommendation browsing
   const [historyStack, setHistoryStack] = useState<SavedItem[]>([initialItem]);
@@ -107,6 +109,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
     const markdown = itemToObsidianMarkdown(activeItem, folders);
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
     downloadBlob(blob, getItemMarkdownFilename(activeItem));
+    onMarkExportedToGoko?.([activeItem.id]);
   };
 
   const handlePopItem = () => {
@@ -307,6 +310,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
             {isExternalHttpUrl(activeItem.url) && (
               <a
                 href={getGokoClipUri(activeItem.url)}
+                onClick={() => onMarkExportedToGoko?.([activeItem.id])}
                 className="col-span-2 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent transition"
                 title="Open in Obsidian Goko to clip & archive permanently"
               >
@@ -423,6 +427,11 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
                 <span className="text-[9px] font-bold text-theme-muted uppercase tracking-wider bg-theme-card px-1.5 py-0.5 rounded-xl border border-theme-border">
                   {activeItem.format}
                 </span>
+                {activeItem.exportedToGokoAt && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                    Goko ✓
+                  </span>
+                )}
               </div>
               <h2 className="text-base font-semibold text-theme-text tracking-wide leading-snug">
                 {activeItem.header}

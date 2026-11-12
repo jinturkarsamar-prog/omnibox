@@ -633,6 +633,14 @@ export const Feed: React.FC<FeedProps> = ({
                         <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-xl bg-theme-sidebar text-theme-muted border border-theme-border truncate">
                           {item.format}
                         </span>
+                        {item.exportedToGokoAt && (
+                          <span
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0"
+                            title="Exported to Goko"
+                          >
+                            Goko ✓
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">

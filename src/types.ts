@@ -45,6 +45,7 @@ export interface SavedItem {
   folderId: string | null; // null means "Inbox" or root if uncategorized
   createdAt: string;
   deletedAt: string | null; // populated when moved to trash bin
+  exportedToGokoAt?: string | null; // ISO timestamp when transferred to Goko
 }
 
 export interface Folder {

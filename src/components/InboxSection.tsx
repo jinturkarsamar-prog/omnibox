@@ -30,6 +30,7 @@ interface InboxSectionProps {
   onMoveItemsToFolder: (ids: string[], folderId: string | null) => void;
   onAssignTagsToItems: (ids: string[], tagNames: string[]) => void;
   onDeleteItems: (ids: string[]) => void;
+  onMarkExportedToGoko?: (ids: string[]) => void;
   onContextMenu?: (e: React.MouseEvent, item: SavedItem) => void;
   onTagClick?: (tagName: string, type: 'user' | 'platform' | 'format') => void;
   onSwipeRightItem?: (item: SavedItem) => void;
@@ -49,6 +50,7 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
   onMoveItemsToFolder,
   onAssignTagsToItems,
   onDeleteItems,
+  onMarkExportedToGoko,
   onContextMenu,
   onTagClick,
   onSwipeRightItem,
@@ -97,16 +99,22 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
     setSelectedIds([]);
   };
 
+  const unsentInboxItems = inboxItems.filter((item) => !item.exportedToGokoAt);
+
   const handleExportToGoko = () => {
     const targets =
       selectedIds.length > 0
         ? inboxItems.filter((item) => selectedIds.includes(item.id))
-        : inboxItems;
+        : unsentInboxItems.length > 0
+          ? unsentInboxItems
+          : inboxItems;
     if (targets.length === 0) return;
+    const targetIds = targets.map((item) => item.id);
     const zipBlob = buildObsidianVaultZip(targets, folders);
     const dateStr = new Date().toISOString().split('T')[0];
     downloadBlob(zipBlob, `omnibox-goko-inbox-${dateStr}.zip`);
-    setLastExportedIds(targets.map((item) => item.id));
+    onMarkExportedToGoko?.(targetIds);
+    setLastExportedIds(targetIds);
   };
 
   const handleTrashExported = () => {
@@ -247,21 +255,27 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
                 )}
               </div>
 
-              {/* Export Queue or Selected to Goko (.zip) */}
+              {/* Export New / Selected or Re-export Queue to Goko (.zip) */}
               <button
                 type="button"
                 onClick={() => {
                   setOpenMenu(null);
                   handleExportToGoko();
                 }}
-                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-theme-accent/40 bg-theme-accent/15 text-theme-accent hover:bg-theme-accent/25 text-xs font-semibold transition shadow-sm cursor-pointer"
+                className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl border text-xs font-semibold transition shadow-sm cursor-pointer ${
+                  selectedIds.length > 0 || unsentInboxItems.length > 0
+                    ? 'border-theme-accent/40 bg-theme-accent/15 text-theme-accent hover:bg-theme-accent/25'
+                    : 'border-theme-border bg-theme-sidebar text-theme-muted hover:text-theme-text hover:bg-theme-card'
+                }`}
                 title="Download Goko-ready Markdown notes inside Clippings/ (.zip)"
               >
                 <Download size={14} />
                 <span>
                   {selectedIds.length > 0
                     ? `To Goko (${selectedIds.length})`
-                    : `To Goko (${inboxItems.length})`}
+                    : unsentInboxItems.length > 0
+                      ? `Export New (${unsentInboxItems.length})`
+                      : `Re-export All (${inboxItems.length})`}
                 </span>
               </button>
 

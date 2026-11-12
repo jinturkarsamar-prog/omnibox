@@ -18,6 +18,7 @@ interface ContextMenuProps {
   onDeleteItems: (ids: string[]) => void;
   onRestoreItems?: (ids: string[]) => void;
   onPermanentDelete?: (ids: string[]) => void;
+  onMarkExportedToGoko?: (ids: string[]) => void;
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -34,6 +35,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onDeleteItems,
   onRestoreItems,
   onPermanentDelete,
+  onMarkExportedToGoko,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<'folder' | 'tag' | null>(null);
@@ -125,7 +127,10 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           {!isTrashView && itemsCount === 1 && (
             <a
               href={getGokoClipUri(item.url)}
-              onClick={onClose}
+              onClick={() => {
+                onMarkExportedToGoko?.([item.id]);
+                onClose();
+              }}
               className="flex items-center space-x-2 w-full px-3 py-2 text-left hover:bg-theme-card text-theme-accent transition-colors"
             >
               <Send size={13} />
