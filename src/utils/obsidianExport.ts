@@ -1,4 +1,5 @@
 import { Folder, SavedItem } from '../types';
+import { isExternalHttpUrl } from './quickParse';
 
 const INVALID_PATH_CHARS = /[\\/:*?"<>|#^[\]\x00-\x1f]/g;
 
@@ -111,10 +112,12 @@ export function itemToObsidianMarkdown(item: SavedItem, folders: Folder[]): stri
     )
   );
 
+  const externalUrl = isExternalHttpUrl(item.url) ? item.url.trim() : '';
+
   const frontmatterLines = [
     '---',
     `title: ${JSON.stringify(item.header || 'Untitled')}`,
-    `source: ${JSON.stringify(item.url || '')}`,
+    `source: ${JSON.stringify(externalUrl)}`,
     `created: ${JSON.stringify(createdTimestamp)}`,
     `description: ${JSON.stringify(description)}`,
   ];
@@ -165,8 +168,8 @@ export function itemToObsidianMarkdown(item: SavedItem, folders: Folder[]): stri
     }
   }
 
-  if (item.url) {
-    bodyLines.push('', `[${item.url}](${item.url})`);
+  if (externalUrl) {
+    bodyLines.push('', `[${externalUrl}](${externalUrl})`);
   }
 
   if (item.note && item.note.trim()) {

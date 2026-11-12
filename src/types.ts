@@ -25,6 +25,7 @@ export type FormatType =
   | 'Thread'
   | 'Image'
   | 'Post'
+  | 'Note'
   | 'Website'
   | 'Other';
 

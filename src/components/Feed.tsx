@@ -19,6 +19,7 @@ import { SavedItem, Tag, Folder } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
 import { SwipeableItem } from './SwipeableItem';
 import { getYouTubeVideoId } from '../utils/youtube';
+import { isExternalHttpUrl } from '../utils/quickParse';
 
 interface FeedProps {
   items: SavedItem[];
@@ -405,15 +406,17 @@ export const Feed: React.FC<FeedProps> = ({
                       </button>
                     </>
                   )}
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-2 rounded-xl text-theme-muted hover:text-theme-text hover:bg-black/5 transition"
-                  >
-                    <ExternalLink size={15} />
-                  </a>
+                  {isExternalHttpUrl(item.url) && (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-2 rounded-xl text-theme-muted hover:text-theme-text hover:bg-black/5 transition"
+                    >
+                      <ExternalLink size={15} />
+                    </a>
+                  )}
                 </div>
               </div>
             </SwipeableItem>
@@ -614,7 +617,7 @@ export const Feed: React.FC<FeedProps> = ({
                           {isSelected && <Check size={10} className="stroke-[3px]" />}
                         </div>
 
-                        {showPlatformBadges && item.platform && (
+                        {showPlatformBadges && item.platform && !(item.format === 'Note' && item.platform === 'Other') && (
                           <div
                             onClick={(e) => {
                               e.stopPropagation();
@@ -657,16 +660,18 @@ export const Feed: React.FC<FeedProps> = ({
                             <MoreVertical size={12} />
                           </button>
                         )}
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="p-1.5 rounded-xl bg-theme-sidebar border border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-accent transition-all cursor-pointer flex items-center justify-center"
-                          title={`Open original URL on ${item.platform}`}
-                        >
-                          <ExternalLink size={12} />
-                        </a>
+                        {isExternalHttpUrl(item.url) && (
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1.5 rounded-xl bg-theme-sidebar border border-theme-border text-theme-muted hover:text-theme-text hover:border-theme-accent transition-all cursor-pointer flex items-center justify-center"
+                            title={`Open original URL on ${item.platform}`}
+                          >
+                            <ExternalLink size={12} />
+                          </a>
+                        )}
                       </div>
                     </div>
                   )}

@@ -27,6 +27,7 @@ import {
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
 import { getYouTubeVideoId } from '../utils/youtube';
+import { bumpChapterInTitle, extractChapterInfo, isExternalHttpUrl } from '../utils/quickParse';
 
 interface DetailSheetProps {
   item: SavedItem;
@@ -261,13 +262,15 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
               {/* Source Quick Actions */}
               <div className="flex flex-wrap items-center justify-between gap-2.5 p-3.5 bg-theme-card/50 rounded-xl border border-theme-border">
                 <div className="flex items-center space-x-2 text-xs min-w-0 flex-1">
-                  <span className="text-theme-muted font-medium shrink-0">Original URL:</span>
+                  <span className="text-theme-muted font-medium shrink-0">
+                    {isExternalHttpUrl(activeItem.url) ? 'Original URL:' : 'Text Note:'}
+                  </span>
                   <span className="text-theme-muted font-mono truncate">
-                    {activeItem.url}
+                    {isExternalHttpUrl(activeItem.url) ? activeItem.url : 'Stored locally in OmniBox'}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
-                  {activeItem.url && (
+                  {isExternalHttpUrl(activeItem.url) && (
                     <a
                       href={getGokoClipUri(activeItem.url)}
                       className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent transition cursor-pointer flex-1 sm:flex-initial"
@@ -295,15 +298,17 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                     <Download size={12} className="text-theme-accent" />
                     <span>Save .md</span>
                   </button>
-                  <a
-                    href={activeItem.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0 w-full sm:w-auto"
-                  >
-                    <span>Open on {activeItem.platform}</span>
-                    <ExternalLink size={12} />
-                  </a>
+                  {isExternalHttpUrl(activeItem.url) && (
+                    <a
+                      href={activeItem.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0 w-full sm:w-auto"
+                    >
+                      <span>Open on {activeItem.platform}</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -425,13 +430,15 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                 <div className="space-y-5">
                   <div className="space-y-1.5">
                     <div className="flex items-center space-x-2">
-                      <span
-                        className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xl ${getPlatformBadgeColor(
-                          activeItem.platform,
-                        )}`}
-                      >
-                        {activeItem.platform}
-                      </span>
+                      {!(activeItem.format === 'Note' && activeItem.platform === 'Other') && (
+                        <span
+                          className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-xl ${getPlatformBadgeColor(
+                            activeItem.platform,
+                          )}`}
+                        >
+                          {activeItem.platform}
+                        </span>
+                      )}
                       <span className="text-[10px] font-semibold text-theme-muted uppercase tracking-widest">
                         {activeItem.format}
                       </span>
@@ -439,6 +446,47 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                     <h2 className="text-xl md:text-2xl font-semibold text-theme-text tracking-tight">
                       {activeItem.header}
                     </h2>
+                    {(() => {
+                      const chapter = extractChapterInfo(activeItem.header);
+                      if (!chapter) return null;
+                      return (
+                        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-theme-card border border-theme-border text-xs">
+                          <span className="text-theme-muted font-medium">
+                            {chapter.label} <strong className="text-theme-text">{chapter.number}</strong>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextHeader = bumpChapterInTitle(activeItem.header, -1);
+                              if (nextHeader) {
+                                const updated = { ...activeItem, header: nextHeader };
+                                onUpdateItem(updated);
+                                setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-theme-sidebar border border-theme-border hover:border-theme-accent text-theme-text font-semibold cursor-pointer"
+                            title="Previous chapter"
+                          >
+                            -1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextHeader = bumpChapterInTitle(activeItem.header, 1);
+                              if (nextHeader) {
+                                const updated = { ...activeItem, header: nextHeader };
+                                onUpdateItem(updated);
+                                setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+                              }
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-theme-accent/20 border border-theme-accent/40 hover:bg-theme-accent/30 text-theme-accent font-semibold cursor-pointer"
+                            title="Next chapter"
+                          >
+                            +1
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {activeItem.note && (

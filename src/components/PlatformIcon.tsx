@@ -97,6 +97,8 @@ export const FormatIcon: React.FC<FormatIconProps> = ({
       return <ImageIcon className={`text-slate-300 ${className}`} size={size} />;
     case 'Post':
       return <FileText className={`text-slate-300 ${className}`} size={size} />;
+    case 'Note':
+      return <FileText className={`text-slate-300 ${className}`} size={size} />;
     case 'Website':
       return <Globe className={`text-slate-300 ${className}`} size={size} />;
     default:

@@ -42,7 +42,7 @@ import { BottomNavigation } from './components/BottomNavigation';
 import { BottomSheet } from './components/BottomSheet';
 import { ToastNotification, ToastMessage } from './components/ToastNotification';
 import { QuickShareOverlay } from './components/QuickShareOverlay';
-import { quickParseUrl, extractFirstUrl } from './utils/quickParse';
+import { quickParseUrl, extractFirstUrl, isExternalHttpUrl } from './utils/quickParse';
 import { useBackHandler, BackStackLayer } from './utils/backNavigation';
 import {
   buildObsidianVaultZip,
@@ -1822,24 +1822,26 @@ export default function App() {
         {quickActionItem && (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <a
-                href={quickActionItem.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text"
-              >
-                <ExternalLink size={14} className="text-theme-accent" />
-                <span>Open on {quickActionItem.platform}</span>
-              </a>
-              {quickActionItem.url && (
-                <a
-                  href={getGokoClipUri(quickActionItem.url)}
-                  onClick={() => setQuickActionItem(null)}
-                  className="flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-xs font-semibold text-theme-accent"
-                >
-                  <Send size={14} />
-                  <span>Goko</span>
-                </a>
+              {isExternalHttpUrl(quickActionItem.url) && (
+                <>
+                  <a
+                    href={quickActionItem.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-card border border-theme-border text-xs font-semibold text-theme-text"
+                  >
+                    <ExternalLink size={14} className="text-theme-accent" />
+                    <span>Open on {quickActionItem.platform}</span>
+                  </a>
+                  <a
+                    href={getGokoClipUri(quickActionItem.url)}
+                    onClick={() => setQuickActionItem(null)}
+                    className="flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-xs font-semibold text-theme-accent"
+                  >
+                    <Send size={14} />
+                    <span>Goko</span>
+                  </a>
+                </>
               )}
               <button
                 type="button"

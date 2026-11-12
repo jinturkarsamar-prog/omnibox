@@ -258,3 +258,40 @@ export function quickParseUrl(targetUrl: string, shareTitle?: string, shareText?
     tags,
   };
 }
+
+/**
+ * Returns true when an item's URL points to an external web resource (excluding empty or placeholder URLs).
+ */
+export function isExternalHttpUrl(url?: string | null): boolean {
+  if (!url) return false;
+  const trimmed = url.trim();
+  return /^https?:\/\//i.test(trimmed) && !trimmed.startsWith('https://omnibox.local');
+}
+
+const CHAPTER_PROGRESS_REGEX = /\b(chapter|chap|ch\.?|episode|ep\.?)\s*(\d+)\b/i;
+
+/**
+ * Extracts a chapter/episode progress marker (e.g. "Chapter 349", "Ch. 12") from a title.
+ */
+export function extractChapterInfo(title: string): { label: string; number: number } | null {
+  const match = CHAPTER_PROGRESS_REGEX.exec(title);
+  if (!match) return null;
+  const num = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(num)) return null;
+  return { label: match[1], number: num };
+}
+
+/**
+ * Returns an updated title with its chapter/episode number incremented/decremented, or null if none found.
+ */
+export function bumpChapterInTitle(title: string, delta: number): string | null {
+  const match = CHAPTER_PROGRESS_REGEX.exec(title);
+  if (!match) return null;
+  const current = Number.parseInt(match[2], 10);
+  if (!Number.isFinite(current)) return null;
+  const next = Math.max(0, current + delta);
+  const start = match.index;
+  const full = match[0];
+  const updated = full.replace(match[2], String(next));
+  return title.slice(0, start) + updated + title.slice(start + full.length);
+}

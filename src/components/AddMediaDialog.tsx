@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   Globe,
   ClipboardPaste,
+  FileText,
 } from 'lucide-react';
 import { PlatformType, FormatType, Folder, Tag } from '../types';
 import { quickParseUrl, extractFirstUrl } from '../utils/quickParse';
@@ -56,7 +57,10 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
   useBackHandler(true, onClose);
 
   // Input fields state
-  const [isExpanded, setIsExpanded] = useState(prefillData?.header ? true : false);
+  const [entryMode, setEntryMode] = useState<'link' | 'note'>(
+    prefillData?.header && !prefillData?.url ? 'note' : 'link'
+  );
+  const [isExpanded, setIsExpanded] = useState(prefillData?.header && prefillData?.url ? true : false);
   const [isScraping, setIsScraping] = useState(false);
   const [scrapeError, setScrapeError] = useState<string | null>(null);
 
@@ -141,18 +145,44 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
     e.preventDefault();
     if (!header.trim()) return;
 
+    const trimmedUrl = url.trim();
+    const resolvedPreviewUrl =
+      format === 'Note' && !customPreviewUrl ? '' : previewUrl;
+
     onSave({
       header: header.trim(),
       note: note.trim(),
-      url: url.trim() || 'https://omnibox.local',
+      url: trimmedUrl,
       platform,
       format,
-      previewUrl,
+      previewUrl: resolvedPreviewUrl,
       customPreviewUrl,
       customPreviewType,
       tags: selectedTags,
       folderId,
     });
+  };
+
+  const handleQuickNoteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!header.trim()) return;
+
+    const cleanOptionalUrl = url.trim();
+    const parsedUrl = cleanOptionalUrl ? quickParseUrl(cleanOptionalUrl) : null;
+
+    onSave({
+      header: header.trim(),
+      note: note.trim(),
+      url: cleanOptionalUrl,
+      platform: parsedUrl ? parsedUrl.platform : 'Other',
+      format: 'Note',
+      previewUrl: '',
+      customPreviewUrl,
+      customPreviewType,
+      tags: selectedTags,
+      folderId,
+    });
+    onClose();
   };
 
   const saveQuickUrl = (rawInput: string) => {
@@ -233,25 +263,203 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
         <div className="w-12 h-1.5 bg-theme-border rounded-xl mx-auto mt-3.5 mb-1 shrink-0 md:hidden opacity-80" />
 
         {/* Header toolbar */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-theme-border shrink-0 bg-theme-sidebar">
-          <div className="flex items-center space-x-2">
-            <Sparkles className="text-theme-muted" size={18} />
-            <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider">
-              {isExpanded ? 'Add Custom Media Item' : 'Paste Media Link'}
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 border-b border-theme-border shrink-0 bg-theme-sidebar gap-3">
+          <div className="flex items-center space-x-2 min-w-0">
+            {entryMode === 'note' && !isExpanded ? (
+              <FileText className="text-theme-accent shrink-0" size={18} />
+            ) : (
+              <Sparkles className="text-theme-muted shrink-0" size={18} />
+            )}
+            <h2 className="text-sm font-semibold text-theme-text uppercase tracking-wider truncate">
+              {isExpanded
+                ? 'Add Custom Item'
+                : entryMode === 'note'
+                  ? 'Text / Chapter Note'
+                  : 'Paste Media Link'}
             </h2>
           </div>
+
+          {!isExpanded && (
+            <div className="flex items-center bg-theme-card border border-theme-border rounded-xl p-0.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setEntryMode('link')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  entryMode === 'link'
+                    ? 'bg-theme-accent text-white shadow-xs'
+                    : 'text-theme-muted hover:text-theme-text'
+                }`}
+              >
+                Link
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryMode('note')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  entryMode === 'note'
+                    ? 'bg-theme-accent text-white shadow-xs'
+                    : 'text-theme-muted hover:text-theme-text'
+                }`}
+              >
+                Text Note
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition"
+            className="min-w-[40px] min-h-[40px] flex items-center justify-center rounded-xl text-theme-muted hover:text-theme-text hover:bg-theme-card transition shrink-0"
           >
             <X size={20} />
           </button>
         </div>
 
         {/* Scrollable Form Content */}
-        {!isExpanded ? (
+        {!isExpanded && entryMode === 'note' ? (
+          <form onSubmit={handleQuickNoteSubmit} className="flex-1 p-5 sm:p-6 space-y-4 overflow-y-auto">
+            <p className="text-xs text-theme-muted">
+              Save a text-only entry (like <span className="text-theme-text font-medium">All Hail the Sect Leader Chapter 349</span>) without any video embed or link required.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-theme-muted mb-1">
+                Title / Series &amp; Chapter *
+              </label>
+              <input
+                type="text"
+                autoFocus
+                placeholder="e.g. All Hail the Sect Leader Chapter 349"
+                value={header}
+                onChange={(e) => setHeader(e.target.value)}
+                className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-theme-muted mb-1">
+                Description / Recap Notes
+              </label>
+              <textarea
+                rows={3}
+                placeholder="What is it about, where you stopped, or channel notes..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-theme-text focus:outline-none focus:border-theme-accent transition resize-none placeholder-theme-muted/50"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-theme-muted mb-1">
+                  Folder (Optional)
+                </label>
+                <select
+                  value={folderId || ''}
+                  onChange={(e) => setFolderId(e.target.value || null)}
+                  className="w-full bg-theme-card border border-theme-border rounded-xl px-3 py-2 text-sm text-theme-text focus:outline-none focus:border-theme-accent"
+                >
+                  <option value="">The Inbox (Uncategorized)</option>
+                  {folders.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-theme-muted mb-1">
+                  Reference URL (Optional)
+                </label>
+                <input
+                  type="url"
+                  placeholder="Optional YouTube/series link..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  className="w-full bg-theme-card border border-theme-border rounded-xl px-3 py-2 text-sm text-theme-text focus:outline-none focus:border-theme-accent transition placeholder-theme-muted/50"
+                />
+              </div>
+            </div>
+
+            {/* Quick Tag selector */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((t) => {
+                  const isSelected = selectedTags.includes(t.name);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleTag(t.name)}
+                      style={{
+                        borderColor: isSelected ? t.color : 'var(--color-theme-border)',
+                        backgroundColor: isSelected ? `${t.color}15` : 'var(--color-theme-card)',
+                        color: isSelected ? t.color : 'var(--color-theme-text)',
+                      }}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-xl border transition cursor-pointer"
+                    >
+                      {t.name}
+                    </button>
+                  );
+                })}
+                {selectedTags
+                  .filter((name) => !tags.some((t) => t.name === name))
+                  .map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() => toggleTag(name)}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-xl border border-theme-accent bg-theme-accent/15 text-theme-accent transition cursor-pointer"
+                    >
+                      {name} ×
+                    </button>
+                  ))}
+              </div>
+              <div className="flex space-x-1.5">
+                <input
+                  type="text"
+                  placeholder="Add tag (e.g. manhwa, recap)..."
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomTag(e);
+                    }
+                  }}
+                  className="flex-1 bg-theme-card border border-theme-border rounded-xl px-3 py-1.5 text-xs text-theme-text placeholder-theme-muted/50 focus:outline-none focus:border-theme-accent"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomTag}
+                  className="bg-theme-card hover:bg-theme-hover text-theme-text border border-theme-border px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  Add Tag
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setIsExpanded(true)}
+                className="text-xs text-theme-muted hover:text-theme-text transition underline decoration-theme-muted/50 underline-offset-4 cursor-pointer"
+              >
+                Full custom form
+              </button>
+              <button
+                type="submit"
+                className="bg-theme-accent hover:bg-theme-hover text-white font-semibold px-6 py-2.5 rounded-xl text-sm transition flex items-center space-x-1.5 shadow-md cursor-pointer"
+              >
+                <Check size={16} />
+                <span>Save Note</span>
+              </button>
+            </div>
+          </form>
+        ) : !isExpanded ? (
           <form onSubmit={handleQuickSubmit} className="flex-1 p-5 sm:p-6 space-y-4 overflow-y-auto">
             <p className="text-xs text-theme-muted">
               Saves instantly (&lt;5ms) and enriches title &amp; thumbnail silently in the background. Tip: press <kbd className="px-1.5 py-0.5 rounded bg-theme-card border border-theme-border font-mono text-[10px]">Cmd/Ctrl+V</kbd> anywhere in the app to instant-save!
@@ -380,6 +588,7 @@ export const AddMediaDialog: React.FC<AddMediaDialogProps> = ({
                 className="w-full bg-theme-card border border-theme-border rounded-xl px-3.5 py-2 text-sm text-theme-text focus:outline-none focus:border-theme-accent"
               >
                 <option value="Website">Website</option>
+                <option value="Note">Text / Chapter Note</option>
                 <option value="Video">Video</option>
                 <option value="Reel">Reel / Short</option>
                 <option value="Image">Image</option>

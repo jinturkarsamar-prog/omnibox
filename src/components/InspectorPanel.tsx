@@ -26,6 +26,7 @@ import {
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
 import { getYouTubeVideoId } from '../utils/youtube';
+import { bumpChapterInTitle, extractChapterInfo, isExternalHttpUrl } from '../utils/quickParse';
 
 interface InspectorPanelProps {
   item: SavedItem;
@@ -267,21 +268,23 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
 
         {/* Action button link */}
         <div className="space-y-2 p-2.5 bg-theme-card/35 rounded-xl border border-theme-border shrink-0">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-mono text-theme-muted truncate min-w-0 flex-1">
-              {activeItem.url}
-            </span>
-            <a
-              href={activeItem.url}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center space-x-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0"
-            >
-              <span>Open Original Link</span>
-              <ExternalLink size={10} />
-            </a>
-          </div>
-          <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-theme-border/60">
+          {isExternalHttpUrl(activeItem.url) && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-mono text-theme-muted truncate min-w-0 flex-1">
+                {activeItem.url}
+              </span>
+              <a
+                href={activeItem.url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition shrink-0"
+              >
+                <span>Open Original Link</span>
+                <ExternalLink size={10} />
+              </a>
+            </div>
+          )}
+          <div className={`grid grid-cols-2 gap-2 ${isExternalHttpUrl(activeItem.url) ? 'pt-1.5 border-t border-theme-border/60' : ''}`}>
             <button
               type="button"
               onClick={handleCopyMarkdown}
@@ -300,7 +303,7 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               <Download size={10} className="text-theme-accent" />
               <span>Save .md Note</span>
             </button>
-            {activeItem.url && (
+            {isExternalHttpUrl(activeItem.url) && (
               <a
                 href={getGokoClipUri(activeItem.url)}
                 className="col-span-2 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent transition"
@@ -409,11 +412,13 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
           /* ================== DETAIL VIEW ================== */
           <div className="space-y-4">
             {/* Title Block */}
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex items-center space-x-1.5">
-                <span className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-xl ${getPlatformBadgeColor(activeItem.platform)}`}>
-                  {activeItem.platform}
-                </span>
+                {!(activeItem.format === 'Note' && activeItem.platform === 'Other') && (
+                  <span className={`text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-xl ${getPlatformBadgeColor(activeItem.platform)}`}>
+                    {activeItem.platform}
+                  </span>
+                )}
                 <span className="text-[9px] font-bold text-theme-muted uppercase tracking-wider bg-theme-card px-1.5 py-0.5 rounded-xl border border-theme-border">
                   {activeItem.format}
                 </span>
@@ -421,6 +426,45 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               <h2 className="text-base font-semibold text-theme-text tracking-wide leading-snug">
                 {activeItem.header}
               </h2>
+              {(() => {
+                const chapter = extractChapterInfo(activeItem.header);
+                if (!chapter) return null;
+                return (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-xl bg-theme-card border border-theme-border text-[11px]">
+                    <span className="text-theme-muted">
+                      {chapter.label} <strong className="text-theme-text">{chapter.number}</strong>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextHeader = bumpChapterInTitle(activeItem.header, -1);
+                        if (nextHeader) {
+                          const updated = { ...activeItem, header: nextHeader };
+                          onUpdateItem(updated);
+                          setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+                        }
+                      }}
+                      className="px-1.5 py-0.5 rounded-lg bg-theme-sidebar border border-theme-border hover:border-theme-accent text-theme-text font-semibold cursor-pointer"
+                    >
+                      -1
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextHeader = bumpChapterInTitle(activeItem.header, 1);
+                        if (nextHeader) {
+                          const updated = { ...activeItem, header: nextHeader };
+                          onUpdateItem(updated);
+                          setHistoryStack((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
+                        }
+                      }}
+                      className="px-1.5 py-0.5 rounded-lg bg-theme-accent/20 border border-theme-accent/40 hover:bg-theme-accent/30 text-theme-accent font-semibold cursor-pointer"
+                    >
+                      +1
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Note block */}
