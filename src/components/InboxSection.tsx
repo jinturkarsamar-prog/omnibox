@@ -13,10 +13,14 @@ import {
   CheckSquare,
   Square,
   AlertCircle,
+  Download,
+  Check,
+  X,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { Feed } from './Feed';
 import { PlatformIcon, getPlatformBadgeColor } from './PlatformIcon';
+import { buildObsidianVaultZip, downloadBlob } from '../utils/obsidianExport';
 
 interface InboxSectionProps {
   inboxItems: SavedItem[];
@@ -58,6 +62,7 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
   // Selected items for mass actions
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [openMenu, setOpenMenu] = useState<'move' | 'tag' | null>(null);
+  const [lastExportedIds, setLastExportedIds] = useState<string[]>([]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === inboxItems.length) {
@@ -91,6 +96,31 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
     onDeleteItems(selectedIds);
     setSelectedIds([]);
   };
+
+  const handleExportToGoko = () => {
+    const targets =
+      selectedIds.length > 0
+        ? inboxItems.filter((item) => selectedIds.includes(item.id))
+        : inboxItems;
+    if (targets.length === 0) return;
+    const zipBlob = buildObsidianVaultZip(targets, folders);
+    const dateStr = new Date().toISOString().split('T')[0];
+    downloadBlob(zipBlob, `omnibox-goko-inbox-${dateStr}.zip`);
+    setLastExportedIds(targets.map((item) => item.id));
+  };
+
+  const handleTrashExported = () => {
+    const liveIds = lastExportedIds.filter((id) => inboxItems.some((item) => item.id === id));
+    if (liveIds.length > 0) {
+      onDeleteItems(liveIds);
+    }
+    setLastExportedIds([]);
+    setSelectedIds([]);
+  };
+
+  const pendingExportCleanupCount = lastExportedIds.filter((id) =>
+    inboxItems.some((item) => item.id === id)
+  ).length;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -217,6 +247,24 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
                 )}
               </div>
 
+              {/* Export Queue or Selected to Goko (.zip) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenMenu(null);
+                  handleExportToGoko();
+                }}
+                className="flex items-center space-x-1.5 px-3 py-2 rounded-xl border border-theme-accent/40 bg-theme-accent/15 text-theme-accent hover:bg-theme-accent/25 text-xs font-semibold transition shadow-sm cursor-pointer"
+                title="Download Goko-ready Markdown notes inside Clippings/ (.zip)"
+              >
+                <Download size={14} />
+                <span>
+                  {selectedIds.length > 0
+                    ? `To Goko (${selectedIds.length})`
+                    : `To Goko (${inboxItems.length})`}
+                </span>
+              </button>
+
               {/* Mass Action: Delete */}
               <button
                 type="button"
@@ -233,6 +281,35 @@ export const InboxSection: React.FC<InboxSectionProps> = ({
             </div>
           )}
         </div>
+
+        {/* Post-export handoff helper banner */}
+        {pendingExportCleanupCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-900/40 text-xs">
+            <div className="flex items-center space-x-2 text-emerald-300 min-w-0">
+              <Check size={15} className="shrink-0" />
+              <span>
+                Exported {pendingExportCleanupCount} Goko clipping{pendingExportCleanupCount === 1 ? '' : 's'} into <code className="font-mono text-emerald-200">Clippings/</code>. Unzip into your vault root on Mac.
+              </span>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleTrashExported}
+                className="px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/30 font-semibold transition cursor-pointer"
+              >
+                Clear Exported ({pendingExportCleanupCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLastExportedIds([])}
+                aria-label="Dismiss export notice"
+                className="p-1.5 rounded-lg text-emerald-300/70 hover:text-emerald-200 cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Inbox items list */}
         

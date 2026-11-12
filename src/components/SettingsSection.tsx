@@ -226,12 +226,26 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
     downloadBlob(blob, `omnibox-backup-with-themes-${new Date().toISOString().split('T')[0]}.json`);
   };
 
-  const handleExportObsidianZip = () => {
-    const activeCount = items.filter((item) => !item.deletedAt).length;
-    const zipBlob = buildObsidianVaultZip(items, folders);
+  const handleExportObsidianZip = (scope: 'all' | 'inbox' = 'all') => {
+    const targetItems = items.filter((item) => {
+      if (item.deletedAt) return false;
+      return scope === 'inbox' ? item.folderId === null : true;
+    });
+    if (targetItems.length === 0) {
+      setObsidianStatus(scope === 'inbox' ? 'Your Inbox queue is empty.' : 'No active items to export.');
+      setTimeout(() => setObsidianStatus(null), 3500);
+      return;
+    }
+    const zipBlob = buildObsidianVaultZip(items, folders, { scope, clippingsFolder: 'Clippings' });
     const dateStr = new Date().toISOString().split('T')[0];
-    downloadBlob(zipBlob, `omnibox-obsidian-vault-${dateStr}.zip`);
-    setObsidianStatus(`Exported ${activeCount} note${activeCount === 1 ? '' : 's'} as an Obsidian Vault (.zip).`);
+    const filename =
+      scope === 'inbox'
+        ? `omnibox-goko-inbox-${dateStr}.zip`
+        : `omnibox-goko-vault-${dateStr}.zip`;
+    downloadBlob(zipBlob, filename);
+    setObsidianStatus(
+      `Exported ${targetItems.length} Goko clipping${targetItems.length === 1 ? '' : 's'} into Clippings/ (.zip).`
+    );
     setTimeout(() => setObsidianStatus(null), 4000);
   };
 
@@ -1002,30 +1016,43 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
                 </button>
               </div>
 
-              {/* Obsidian Markdown Export */}
+              {/* Obsidian / Goko Markdown Export */}
               <div className="pt-3 border-t border-theme-border/60 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-theme-text">Export for Obsidian (.md)</span>
-                  <span className="text-[11px] text-theme-muted">YAML frontmatter &amp; folders</span>
+                  <span className="text-xs font-semibold text-theme-text">Transfer to Goko / Obsidian (.md)</span>
+                  <span className="text-[11px] text-theme-muted">Exports into <code className="font-mono">Clippings/</code></span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   <button
                     type="button"
-                    onClick={handleExportObsidianZip}
-                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    onClick={() => handleExportObsidianZip('inbox')}
+                    className="flex items-center justify-center space-x-2 bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent py-2.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    title="Export only Inbox quick links for Goko"
+                  >
+                    <Archive size={14} className="shrink-0" />
+                    <span>Inbox → Goko (.zip)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExportObsidianZip('all')}
+                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    title="Export full active library into Clippings/ (.zip)"
                   >
                     <Archive size={14} className="text-theme-accent shrink-0" />
-                    <span>Vault Folder (.zip)</span>
+                    <span>All → Goko (.zip)</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleExportObsidianSingle}
-                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-4 rounded-xl text-xs font-semibold transition cursor-pointer"
+                    className="flex items-center justify-center space-x-2 bg-theme-card border border-theme-border hover:bg-black/20 text-theme-text py-2.5 px-3 rounded-xl text-xs font-semibold transition cursor-pointer"
                   >
                     <FileText size={14} className="text-theme-accent shrink-0" />
                     <span>Single Note (.md)</span>
                   </button>
                 </div>
+                <p className="text-[11px] text-theme-muted leading-relaxed">
+                  Unzip into your Obsidian vault root. Notes include <code className="font-mono">source:</code> URLs, timestamps, and <code className="font-mono">categories:</code> so Goko auto-archives covers, videos, and domain rules.
+                </p>
                 {obsidianStatus && (
                   <div className="flex items-center space-x-2 p-2.5 bg-emerald-950/20 border border-emerald-900/30 text-emerald-400 rounded-xl text-xs">
                     <Check size={14} className="shrink-0" />

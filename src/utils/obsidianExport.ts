@@ -3,16 +3,57 @@ import { Folder, SavedItem } from '../types';
 const INVALID_PATH_CHARS = /[\\/:*?"<>|#^[\]\x00-\x1f]/g;
 
 /**
- * Sanitizes a single path segment (file or folder name) for cross-platform Obsidian vaults.
+ * Sanitizes a single path segment (file or folder name) for cross-platform Obsidian/Goko vaults.
+ * Strips leading `.` and `_` because Goko ignores files/folders prefixed with them.
  */
 export function sanitizeObsidianName(name: string, fallback = 'Untitled'): string {
   const cleaned = name
     .replace(INVALID_PATH_CHARS, '-')
     .replace(/\s+/g, ' ')
-    .replace(/^[.\s]+|[.\s]+$/g, '')
+    .replace(/^[._\s]+|[.\s]+$/g, '')
     .slice(0, 90)
     .trim();
   return cleaned || fallback;
+}
+
+/**
+ * Formats an ISO timestamp into Goko's sortable `YYYY-MM-DDTHH:MM:SS` format.
+ */
+function formatGokoCreatedTimestamp(iso?: string): string {
+  const parsed = iso ? new Date(iso) : new Date();
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}` +
+    `T${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+  );
+}
+
+/**
+ * Builds an Obsidian protocol URI that asks Goko to clip and archive a URL directly on desktop.
+ */
+export function getGokoClipUri(url: string): string {
+  return `obsidian://goko?url=${encodeURIComponent(url.trim())}`;
+}
+
+/**
+ * Maps an OmniBox folder hierarchy into Goko's two-level `grid` + `folder` placement.
+ */
+function getGokoPlacement(
+  folderId: string | null,
+  folders: Folder[]
+): { grid: string | null; folder: string | null; subDir: string } {
+  if (!folderId) {
+    return { grid: null, folder: null, subDir: '' };
+  }
+  const segments = resolveFolderSegments(folderId, folders);
+  if (segments.length === 0 || (segments.length === 1 && segments[0] === 'Inbox')) {
+    return { grid: null, folder: null, subDir: '' };
+  }
+  const grid = segments[0];
+  const folder = segments.length > 1 ? sanitizeObsidianName(segments.slice(1).join(' - '), 'Folder') : null;
+  const subDir = folder ? `${grid}/${folder}` : grid;
+  return { grid, folder, subDir };
 }
 
 /**
@@ -50,14 +91,21 @@ export function resolveFolderSegments(folderId: string | null, folders: Folder[]
 }
 
 /**
- * Formats an item as a standalone Obsidian-compatible Markdown note with YAML frontmatter.
+ * Formats an item as a Goko-compatible Obsidian Markdown note with YAML frontmatter.
+ * Writes the item's actual URL to `source:` so Goko auto-archives covers, videos, and domain rules.
  */
 export function itemToObsidianMarkdown(item: SavedItem, folders: Folder[]): string {
-  const folderPath = resolveFolderSegments(item.folderId, folders).join('/');
-  const createdDate = item.createdAt ? item.createdAt.split('T')[0] : '';
+  const { grid, folder } = getGokoPlacement(item.folderId, folders);
+  const createdTimestamp = formatGokoCreatedTimestamp(item.createdAt);
+  const description = item.quoteText ? item.quoteText.trim() : '';
+
+  const categoryValues = Array.from(
+    new Set(item.tags.map((t) => t.trim()).filter(Boolean))
+  );
+
   const uniqueTags = Array.from(
     new Set(
-      [...item.tags, item.platform.toLowerCase(), item.format.toLowerCase()]
+      ['clippings', ...item.tags, item.platform.toLowerCase(), item.format.toLowerCase()]
         .map(toObsidianTag)
         .filter(Boolean)
     )
@@ -66,13 +114,19 @@ export function itemToObsidianMarkdown(item: SavedItem, folders: Folder[]): stri
   const frontmatterLines = [
     '---',
     `title: ${JSON.stringify(item.header || 'Untitled')}`,
-    `url: ${JSON.stringify(item.url || '')}`,
-    `platform: ${JSON.stringify(item.platform)}`,
-    `format: ${JSON.stringify(item.format)}`,
-    `folder: ${JSON.stringify(folderPath)}`,
-    `created: ${JSON.stringify(createdDate)}`,
-    'source: "OmniBox"',
+    `source: ${JSON.stringify(item.url || '')}`,
+    `created: ${JSON.stringify(createdTimestamp)}`,
+    `description: ${JSON.stringify(description)}`,
   ];
+
+  if (categoryValues.length > 0) {
+    frontmatterLines.push('categories:');
+    for (const category of categoryValues) {
+      frontmatterLines.push(`  - ${JSON.stringify(category)}`);
+    }
+  } else {
+    frontmatterLines.push('categories: []');
+  }
 
   if (uniqueTags.length > 0) {
     frontmatterLines.push('tags:');
@@ -82,40 +136,44 @@ export function itemToObsidianMarkdown(item: SavedItem, folders: Folder[]): stri
   } else {
     frontmatterLines.push('tags: []');
   }
+
+  if (grid) frontmatterLines.push(`grid: ${JSON.stringify(grid)}`);
+  if (folder) frontmatterLines.push(`folder: ${JSON.stringify(folder)}`);
+  frontmatterLines.push(`platform: ${JSON.stringify(item.platform)}`);
+  frontmatterLines.push(`format: ${JSON.stringify(item.format)}`);
+  frontmatterLines.push('origin: "OmniBox"');
   frontmatterLines.push('---');
 
-  const bodyLines: string[] = [
-    '',
-    `# ${item.header || 'Untitled'}`,
-    '',
-    `**Source:** [Open on ${item.platform}](${item.url}) · **Format:** ${item.format} · **Folder:** [[${folderPath}]]`,
-  ];
+  const bodyLines: string[] = [];
 
-  const previewUrl = item.customPreviewUrl || item.previewUrl;
-  if (previewUrl) {
-    if (previewUrl.startsWith('data:')) {
-      bodyLines.push('', '_Custom local media preview attached in OmniBox._');
-    } else if (item.customPreviewType === 'video') {
-      bodyLines.push('', `[Preview Media](${previewUrl})`);
-    } else {
-      bodyLines.push('', `![${sanitizeObsidianName(item.header, 'Preview')}](${previewUrl})`);
-    }
-  }
-
-  if (item.quoteText && item.quoteText.trim()) {
-    const quoted = item.quoteText
-      .trim()
+  if (description) {
+    const quoted = description
       .split(/\r?\n/)
       .map((line) => `> ${line}`)
       .join('\n');
     bodyLines.push('', '> [!quote]', quoted);
   }
 
-  if (item.note && item.note.trim()) {
-    bodyLines.push('', '## Notes', '', item.note.trim());
+  const previewUrl = item.customPreviewUrl || item.previewUrl;
+  if (previewUrl) {
+    if (previewUrl.startsWith('data:')) {
+      bodyLines.push('', '_Custom local media preview attached in OmniBox._');
+    } else if (item.customPreviewType === 'video') {
+      bodyLines.push('', `<video src="${previewUrl}" controls=""></video>`);
+    } else {
+      bodyLines.push('', `![${sanitizeObsidianName(item.header, 'Preview')}](${previewUrl})`);
+    }
   }
 
-  return `${frontmatterLines.join('\n')}\n${bodyLines.join('\n').trim()}\n`;
+  if (item.url) {
+    bodyLines.push('', `[${item.url}](${item.url})`);
+  }
+
+  if (item.note && item.note.trim()) {
+    bodyLines.push('', item.note.trim());
+  }
+
+  return `${frontmatterLines.join('\n')}\n\n${bodyLines.join('\n').trim()}\n`;
 }
 
 /**
@@ -306,22 +364,38 @@ export function createZipBlob(files: Array<{ path: string; content: string }>): 
   return new Blob(blobParts, { type: 'application/zip' });
 }
 
+export interface ObsidianVaultZipOptions {
+  scope?: 'all' | 'inbox';
+  clippingsFolder?: string;
+}
+
 /**
- * Packages active library items into an Obsidian vault `.zip` organized by folder hierarchy.
+ * Packages active library items into an Obsidian/Goko-ready `.zip` rooted at `Clippings/`.
  */
-export function buildObsidianVaultZip(items: SavedItem[], folders: Folder[]): Blob {
-  const activeItems = items.filter((item) => !item.deletedAt);
+export function buildObsidianVaultZip(
+  items: SavedItem[],
+  folders: Folder[],
+  options: ObsidianVaultZipOptions = {}
+): Blob {
+  const { scope = 'all', clippingsFolder = 'Clippings' } = options;
+  const rootFolder = sanitizeObsidianName(clippingsFolder, 'Clippings');
+  const exportItems = items.filter((item) => {
+    if (item.deletedAt) return false;
+    return scope === 'inbox' ? item.folderId === null : true;
+  });
+
   const usedPaths = new Set<string>();
   const files: Array<{ path: string; content: string }> = [];
 
-  for (const item of activeItems) {
-    const folderDir = resolveFolderSegments(item.folderId, folders).join('/');
+  for (const item of exportItems) {
+    const { subDir } = getGokoPlacement(item.folderId, folders);
+    const dir = subDir ? `${rootFolder}/${subDir}` : rootFolder;
     const baseName = sanitizeObsidianName(item.header, `omnibox-${item.id}`);
 
-    let candidatePath = `${folderDir}/${baseName}.md`;
+    let candidatePath = `${dir}/${baseName}.md`;
     let suffix = 2;
     while (usedPaths.has(candidatePath.toLowerCase())) {
-      candidatePath = `${folderDir}/${baseName} (${suffix}).md`;
+      candidatePath = `${dir}/${baseName} (${suffix}).md`;
       suffix += 1;
     }
     usedPaths.add(candidatePath.toLowerCase());

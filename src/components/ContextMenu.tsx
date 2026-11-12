@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ExternalLink, Copy, FolderOpen, Tag, Trash2, RotateCcw, XCircle, ArrowRight } from 'lucide-react';
+import { ExternalLink, Copy, FolderOpen, Tag, Trash2, RotateCcw, XCircle, ArrowRight, Send } from 'lucide-react';
 import { SavedItem, Folder, Tag as TagType } from '../types';
+import { getGokoClipUri } from '../utils/obsidianExport';
 
 interface ContextMenuProps {
   x: number;
@@ -118,6 +119,17 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           <ExternalLink size={13} className="text-theme-muted" />
           <span>Open original link</span>
         </button>
+
+        {!isTrashView && itemsCount === 1 && item.url && (
+          <a
+            href={getGokoClipUri(item.url)}
+            onClick={onClose}
+            className="flex items-center space-x-2 w-full px-3 py-2 text-left hover:bg-theme-card text-theme-accent transition-colors"
+          >
+            <Send size={13} />
+            <span>Send to Goko (Obsidian)</span>
+          </a>
+        )}
 
         <button
           onClick={handleCopyLink}

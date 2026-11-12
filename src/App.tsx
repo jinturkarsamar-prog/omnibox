@@ -22,6 +22,8 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Download,
+  Send,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag, AutoRule, PlatformType, FormatType, ThemeConfig } from './types';
 import { THEME_PRESETS } from './theme';
@@ -42,7 +44,12 @@ import { ToastNotification, ToastMessage } from './components/ToastNotification'
 import { QuickShareOverlay } from './components/QuickShareOverlay';
 import { quickParseUrl, extractFirstUrl } from './utils/quickParse';
 import { useBackHandler, BackStackLayer } from './utils/backNavigation';
-import { itemToObsidianMarkdown } from './utils/obsidianExport';
+import {
+  buildObsidianVaultZip,
+  downloadBlob,
+  getGokoClipUri,
+  itemToObsidianMarkdown,
+} from './utils/obsidianExport';
 
 const PENDING_ENRICH_KEY = 'omnibox_pending_enrichments';
 
@@ -1741,7 +1748,28 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const chosen = items.filter((item) => selectedItemIds.includes(item.id));
+                if (chosen.length === 0) return;
+                const zipBlob = buildObsidianVaultZip(chosen, folders);
+                const dateStr = new Date().toISOString().split('T')[0];
+                downloadBlob(zipBlob, `omnibox-goko-selected-${dateStr}.zip`);
+                addToast({
+                  id: `goko-export-${Date.now()}`,
+                  type: 'info',
+                  title: `Exported ${chosen.length} note${chosen.length === 1 ? '' : 's'} for Goko`,
+                  message: 'Unzip into your Obsidian vault root (Clippings/).',
+                });
+              }}
+              className="flex items-center space-x-1 px-2.5 py-2 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-xs font-semibold text-theme-accent hover:bg-theme-accent/25 cursor-pointer"
+              title="Export selected items into a Goko-ready Clippings/ .zip"
+            >
+              <Download size={13} />
+              <span>Goko</span>
+            </button>
             <button
               type="button"
               onClick={() => setShowBulkMoveSheet(true)}
@@ -1803,6 +1831,16 @@ export default function App() {
                 <ExternalLink size={14} className="text-theme-accent" />
                 <span>Open on {quickActionItem.platform}</span>
               </a>
+              {quickActionItem.url && (
+                <a
+                  href={getGokoClipUri(quickActionItem.url)}
+                  onClick={() => setQuickActionItem(null)}
+                  className="flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl bg-theme-accent/15 border border-theme-accent/40 text-xs font-semibold text-theme-accent"
+                >
+                  <Send size={14} />
+                  <span>Goko</span>
+                </a>
+              )}
               <button
                 type="button"
                 onClick={async () => {

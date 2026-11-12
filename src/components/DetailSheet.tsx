@@ -15,12 +15,14 @@ import {
   Copy,
   Check,
   Download,
+  Send,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
 import { useBackHandler, BackStackLayer } from '../utils/backNavigation';
 import {
   downloadBlob,
+  getGokoClipUri,
   getItemMarkdownFilename,
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
@@ -265,11 +267,21 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0">
+                  {activeItem.url && (
+                    <a
+                      href={getGokoClipUri(activeItem.url)}
+                      className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent transition cursor-pointer flex-1 sm:flex-initial"
+                      title="Open in Obsidian Goko on Mac to archive permanently"
+                    >
+                      <Send size={12} />
+                      <span>Send to Goko</span>
+                    </a>
+                  )}
                   <button
                     type="button"
                     onClick={handleCopyMarkdown}
                     className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer flex-1 sm:flex-initial"
-                    title="Copy Obsidian Markdown to clipboard"
+                    title="Copy Goko/Obsidian Markdown to clipboard"
                   >
                     {copiedMarkdown ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} className="text-theme-accent" />}
                     <span>{copiedMarkdown ? 'Copied .md' : 'Copy .md'}</span>
@@ -278,7 +290,7 @@ export const DetailSheet: React.FC<DetailSheetProps> = ({
                     type="button"
                     onClick={handleDownloadMarkdown}
                     className="flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer flex-1 sm:flex-initial"
-                    title="Download Obsidian Markdown note (.md)"
+                    title="Download Goko/Obsidian Markdown note (.md)"
                   >
                     <Download size={12} className="text-theme-accent" />
                     <span>Save .md</span>

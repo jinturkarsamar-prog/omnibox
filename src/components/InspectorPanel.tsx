@@ -15,11 +15,13 @@ import {
   Copy,
   Check,
   Download,
+  Send,
 } from 'lucide-react';
 import { SavedItem, Folder, Tag } from '../types';
 import { PlatformIcon, FormatIcon, getPlatformBadgeColor } from './PlatformIcon';
 import {
   downloadBlob,
+  getGokoClipUri,
   getItemMarkdownFilename,
   itemToObsidianMarkdown,
 } from '../utils/obsidianExport';
@@ -284,20 +286,30 @@ export const InspectorPanel: React.FC<InspectorPanelProps> = ({
               type="button"
               onClick={handleCopyMarkdown}
               className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer"
-              title="Copy Obsidian Markdown"
+              title="Copy Goko/Obsidian Markdown"
             >
               {copiedMarkdown ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} className="text-theme-accent" />}
-              <span>{copiedMarkdown ? 'Copied .md' : 'Copy Obsidian .md'}</span>
+              <span>{copiedMarkdown ? 'Copied .md' : 'Copy Goko .md'}</span>
             </button>
             <button
               type="button"
               onClick={handleDownloadMarkdown}
               className="flex items-center justify-center space-x-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-card border border-theme-border hover:bg-theme-hover text-theme-text transition cursor-pointer"
-              title="Download Obsidian Markdown file"
+              title="Download Goko/Obsidian Markdown file"
             >
               <Download size={10} className="text-theme-accent" />
               <span>Save .md Note</span>
             </button>
+            {activeItem.url && (
+              <a
+                href={getGokoClipUri(activeItem.url)}
+                className="col-span-2 flex items-center justify-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-bold bg-theme-accent/15 border border-theme-accent/40 hover:bg-theme-accent/25 text-theme-accent transition"
+                title="Open in Obsidian Goko to clip & archive permanently"
+              >
+                <Send size={10} />
+                <span>Send to Goko (Obsidian)</span>
+              </a>
+            )}
           </div>
         </div>
 
